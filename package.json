@@ -1,0 +1,48 @@
+{
+  "name": "refcollector",
+  "version": "0.1.0",
+  "description": "RefCollector - 画师参考图收集器",
+  "main": "electron/main.js",
+  "author": "RefCollector",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "start": "electron .",
+    "dev": "vite",
+    "dev:electron": "cross-env VITE_DEV=1 electron .",
+    "dist": "vite build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "pinyin-pro": "^3.26.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^45.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.refcollector.app",
+    "productName": "RefCollector",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

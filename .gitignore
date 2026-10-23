@@ -1,0 +1,15 @@
+node_modules/
+dist/
+release/
+.tmp-*
+*.log
+Thumbs.db
+.DS_Store
+
+# local library database (generated)
+library.db
+library.db-wal
+library.db-shm
+demo-library/library.db
+demo-library/library.db-wal
+demo-library/library.db-shm
