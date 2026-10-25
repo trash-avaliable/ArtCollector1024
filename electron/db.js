@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -72,6 +72,13 @@ function openDatabase(root) {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 4000');
   db.exec(SCHEMA);
+
+  // v1 -> v2：重命名后磁盘文件名不再等于 sha，需要单独记录
+  const cols = db.prepare('PRAGMA table_info(assets)').all().map((c) => c.name);
+  if (!cols.includes('fname')) {
+    db.exec("ALTER TABLE assets ADD COLUMN fname TEXT NOT NULL DEFAULT ''");
+  }
+
   const { user_version: ver } = db.prepare('PRAGMA user_version').get();
   if (ver < SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   return { db, file };

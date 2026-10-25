@@ -126,7 +126,7 @@ class LibraryTools {
     return {
       id: r.id, sha: r.sha, ext: r.ext, name: r.name, w: r.w, h: r.h, size: r.size,
       addedAt: r.added_at, usedAt: r.used_at, category: r.category, subcategory: r.subcategory,
-      tags, source: r.source, sourceUrl: r.source_url,
+      tags, source: r.source, sourceUrl: r.source_url, fname: r.fname || '',
       favorite: !!r.favorite, hasThumb: !!r.has_thumb,
       _py: r.py, _init: r.py_init, _cpy: r.cat_py, _cinit: r.cat_py_init
     };
@@ -218,7 +218,34 @@ class LibraryTools {
   thumbPath(sha) { return path.join(this.root, 'thumbs', sha + '.jpg'); }
 
   itemFile(it) {
-    return path.join(this.root, 'files', it.sha.slice(0, 2), it.sha.slice(2, 4), it.sha + it.ext);
+    const base = it.fname || (it.sha + it.ext);
+    return path.join(this.root, 'files', it.sha.slice(0, 2), it.sha.slice(2, 4), base);
+  }
+
+  /** 程序内重命名：同时改数据库里的显示名和磁盘文件名（保持扩展名与所在分片目录） */
+  rename(id, rawName) {
+    const it = this.getById(id);
+    if (!it) return null;
+    const ext = (path.extname(it.name) || it.ext || '').toLowerCase();
+    let stem = String(rawName || '').trim();
+    if (ext && stem.toLowerCase().endsWith(ext)) stem = stem.slice(0, -ext.length);
+    stem = stem.replace(/[\\/:*?"<>|\r\n\t]/g, '').replace(/\s+/g, ' ').trim();
+    if (!stem) return { error: '名称不能为空' };
+    if (stem.length > 90) stem = stem.slice(0, 90);
+
+    const dir = path.dirname(this.itemFile(it));
+    const nextFile = path.join(dir, stem + ext);
+    const oldFile = this.itemFile(it);
+    if (path.basename(oldFile) !== path.basename(nextFile)) {
+      if (fs.existsSync(nextFile)) return { error: '同名文件已存在' };
+      try { fs.renameSync(oldFile, nextFile); }
+      catch (e) { return { error: '文件被占用，改名失败' }; }
+    }
+
+    const name = stem + ext;
+    this.db.prepare('UPDATE assets SET name = ?, fname = ?, py = ?, py_init = ? WHERE id = ?')
+      .run(name, path.basename(nextFile), py(name), pyInit(name), id);
+    return { item: this.getById(id) };
   }
 
   resolveThumb(sha) {
@@ -295,7 +322,7 @@ class LibraryTools {
     const name = meta.name || path.basename(srcPath);
     const hay = [name, meta.source || '', meta.sourceUrl || '', path.dirname(srcPath)].join(' ');
     const cls = meta.category
-      ? { category: meta.category, subcategory: meta.subcategory || '收件箱' }
+      ? { category: meta.category, subcategory: meta.subcategory || '' }
       : classify(hay);
 
     const item = {
@@ -318,7 +345,7 @@ class LibraryTools {
     return true;
   }
 
-  async importPaths(paths, onProgress) {
+  async importPaths(paths, onProgress, meta = {}) {
     const files = [];
     for (const p of paths) {
       try {
@@ -331,7 +358,7 @@ class LibraryTools {
     for (const f of files) {
       i++;
       try {
-        const ok = await this.importOne(f);
+        const ok = await this.importOne(f, meta);
         if (ok === 'dup') dup++;
         else if (ok) added++;
         else failed++;
@@ -344,6 +371,56 @@ class LibraryTools {
       }
     }
     return { added, dup, failed, total: files.length };
+  }
+
+  async removeMany(ids) {
+    let n = 0;
+    for (const id of ids || []) {
+      try { if (await this.remove(id)) n++; } catch { }
+    }
+    return n;
+  }
+
+  /** 批量改分类（多选后一次写库） */
+  setCategoryMany(ids, category, subcategory = '') {
+    const cat = (category || '') + subcategory;
+    let n = 0;
+    this.tx(() => {
+      for (const id of ids || []) {
+        if (!this.getById(id)) continue;
+        this.q.setCategory.run(category, subcategory, py(cat), pyInit(cat), id);
+        n++;
+      }
+    });
+    return n;
+  }
+
+  toggleFavMany(ids, value) {
+    let n = 0;
+    this.tx(() => {
+      for (const id of ids || []) {
+        this.q.setFav.run(value ? 1 : 0, id);
+        n++;
+      }
+    });
+    return n;
+  }
+
+  /** 分类改名：同时改所有素材上的分类字段 */
+  renameCategory(from, to) {
+    const cat = String(to || '').trim();
+    if (!cat) return 0;
+    const r = this.db.prepare('UPDATE assets SET category = ?, cat_py = ?, cat_py_init = ? WHERE category = ?')
+      .run(cat, py(cat), pyInit(cat), from);
+    return r.changes || 0;
+  }
+
+  /** 删除分类：素材不删，退回「待分类」 */
+  dropCategory(name) {
+    const cat = '待分类' + '收件箱';
+    const r = this.db.prepare('UPDATE assets SET category = ?, subcategory = ?, cat_py = ?, cat_py_init = ? WHERE category = ?')
+      .run('待分类', '收件箱', py(cat), pyInit(cat), name);
+    return r.changes || 0;
   }
 
   setCategory(id, category, subcategory) {

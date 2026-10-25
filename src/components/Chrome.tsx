@@ -1,23 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type { Stats, View } from '../types';
+import { useEffect, useState } from 'react';
 
-const Ico = ({ d, size = 18 }: { d: string; size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={1.3}
-    strokeLinecap="square" strokeLinejoin="miter">
-    <path d={d} />
-  </svg>
-);
-
-export function TitleBar({ root, maximized }: { root: string; maximized: boolean }) {
+export function TitleBar({ crumb, maximized, onSettings }: { crumb: string; maximized: boolean; onSettings: () => void }) {
   return (
     <div className="titlebar">
       <div className="brand">
         <i className="sq" />
         <span className="nm">REFCOLLECTOR</span>
-        <span className="cn">参考图收集器</span>
       </div>
-      <div className="pathline" title={root}>{root || '正在初始化库…'}</div>
+      <div className="crumb" title={crumb}>{crumb}</div>
       <div className="wctl">
+        <button onClick={onSettings} title="库设置">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="1.4">
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7" />
+          </svg>
+        </button>
         <button onClick={() => window.api.win.minimize()} title="最小化">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6h8" /></svg>
         </button>
@@ -34,46 +31,18 @@ export function TitleBar({ root, maximized }: { root: string; maximized: boolean
   );
 }
 
-const NAV: { key: View; label: string; icon: string }[] = [
-  { key: 'all', label: '全部', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-  { key: 'inbox', label: '收件箱', icon: 'M3 4h18v10H3zM3 14l4-4M21 14l-4-4M8 20h8' },
-  { key: 'fav', label: '收藏', icon: 'M12 3l3 6 6 1-4.5 4.2 1 6-5.5-3-5.5 3 1-6L3 10l6-1z' },
-  { key: 'recent', label: '最近', icon: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3.5 2' }
-];
-
-export function Rail({ view, setView, stats }: { view: View; setView: (v: View) => void; stats: Stats }) {
-  const count = (k: View) => (k === 'inbox' ? stats.inbox : k === 'fav' ? stats.fav : 0);
-  return (
-    <nav className="rail">
-      {NAV.map(n => (
-        <button key={n.key} className={view === n.key ? 'on' : ''} onClick={() => setView(n.key)} title={n.label}>
-          <Ico d={n.icon} />
-          <span>{n.label}</span>
-          {count(n.key) > 0 && <b className="badge">{count(n.key) > 99 ? '99+' : count(n.key)}</b>}
-        </button>
-      ))}
-      <div className="spacer" />
-      <button onClick={() => window.api.lib.openRoot()} title="打开库目录">
-        <Ico d="M3 7h7l2 2h9v10H3z" />
-        <span>库目录</span>
-      </button>
-    </nav>
-  );
-}
-
 export function StatusBar({ root, total, busy }: { root: string; total: number; busy: string }) {
   return (
     <footer className="status">
-      <div className="st"><i className={root ? '' : 'off'} />本地库{root ? '已连接' : '未就绪'}</div>
+      <div className="st"><i className={root ? '' : 'off'} />{root ? '本地库已连接' : '库未就绪'}</div>
       <div className="sep" />
       <div className="mono">索引 <b>{total}</b> 项</div>
-      <div className="sep" />
-      <div className="mono" style={{ maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root}</div>
+      <div className="path" title={root}>{root}</div>
       <div className="right">
-        {busy && <div className="mono" style={{ color: '#fffa00' }}>{busy}</div>}
-        <div className="mono">ALT+SPACE 唤起</div>
-        <div className="mono">双击卡片 大图</div>
-        <div className="mono">拖「拖入画布」到 PS</div>
+        {busy && <div className="mono busy">{busy}</div>}
+        <div className="mono"><b>ALT+SPACE</b> 唤起</div>
+        <div className="mono"><b>双击</b> 大图</div>
+        <div className="mono"><b>F2</b> 重命名</div>
       </div>
     </footer>
   );

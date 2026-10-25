@@ -15,6 +15,7 @@ export type Item = {
   favorite: boolean;
   ext: string;
   hasThumb: boolean;
+  fname?: string;
 };
 
 export type Stats = {
@@ -36,6 +37,14 @@ export type Toast = { msg: string; undo?: () => void } | null;
 
 export type ClipInfo = { file: string; width: number; height: number; dataUrl: string };
 
+export type Sort = 'new' | 'old' | 'name' | 'size';
+
+export type Prefs = { railViews?: View[]; railCats?: string[] };
+
+export type ColorHit = { hex: string; dist: number; pct: number };
+
+export const DEFAULT_VIEWS: View[] = ['all', 'inbox', 'fav', 'recent'];
+
 declare global {
   interface Window {
     api: {
@@ -52,15 +61,27 @@ declare global {
         list(opts: any): Promise<Item[]>;
         stats(): Promise<Stats>;
         counts(): Promise<Record<string, number>>;
-        importDialog(): Promise<{ added: number; dup: number; failed: number; total: number } | null>;
-        importPaths(paths: string[]): Promise<any>;
+        importDialog(opts?: { category?: string }): Promise<{ added: number; dup: number; failed: number; total: number } | null>;
+        importPaths(payload: string[] | { paths: string[]; category?: string }): Promise<any>;
         importFile(payload: { file: string; category?: string; subcategory?: string }): Promise<any>;
+        cats(): Promise<Tree>;
+        saveCats(list: Tree): Promise<Tree>;
+        renameCat(p: { from: string; to: string }): Promise<number>;
+        dropCat(name: string): Promise<number>;
+        removeMany(ids: string[]): Promise<{ n: number; stats: Stats }>;
+        setCategoryMany(p: { ids: string[]; category: string; subcategory?: string }): Promise<number>;
+        toggleFavMany(p: { ids: string[]; value: boolean }): Promise<number>;
+        setTags(p: { id: string; tags: string[] }): Promise<{ id: string; tags: string[] } | null>;
         setCategory(p: { id: string; category: string; subcategory?: string }): Promise<any>;
         toggleFav(id: string): Promise<any>;
         remove(id: string): Promise<any>;
         reveal(id: string): Promise<boolean>;
         openRoot(): Promise<void>;
-        chooseRoot(): Promise<any>;
+        pickRoot(): Promise<string | null>;
+        applyRoot(p: { root: string; migrate: boolean }): Promise<{ root: string; stats: Stats }>;
+        rename(id: string, name: string): Promise<{ item?: Item; error?: string }>;
+        getPrefs(): Promise<Prefs>;
+        setPrefs(patch: Partial<Prefs>): Promise<Prefs>;
         copyImage(id: string): Promise<boolean>;
         colors(id: string): Promise<PaletteColor[]>;
         searchColors(opts: { colors: (string | { hex: string; weight?: number })[]; threshold?: number; limit?: number; category?: string | null }): Promise<(Item & { colorScore: number; matched: { hex: string; dist: number; pct: number }[] })[]>;
@@ -73,6 +94,7 @@ declare global {
         clipImage(cb: (c: ClipInfo) => void): () => void;
         focusSearch(cb: () => void): () => void;
         saveClip(cb: () => void): () => void;
+        librarySwitched(cb: (p: { root: string; stats: Stats }) => void): () => void;
       };
     };
   }

@@ -38,16 +38,26 @@ class Store {
     this.root = null;
     this.db = null;
     this.tools = null;
+    this.cfg = {};
   }
 
   get configPath() {
     return path.join(app.getPath('userData'), 'config.json');
   }
 
+  readConfig() {
+    try { this.cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf8')) || {}; }
+    catch { this.cfg = {}; }
+    return this.cfg;
+  }
+
+  writeConfig() {
+    try { fs.writeFileSync(this.configPath, JSON.stringify(this.cfg, null, 2)); } catch { }
+  }
+
   async init() {
-    let cfg = {};
-    try { cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf8')); } catch { }
-    this.root = process.env.RC_LIB || cfg.libraryRoot || path.join(app.getPath('pictures'), 'RefCollector');
+    this.readConfig();
+    this.root = process.env.RC_LIB || this.cfg.libraryRoot || path.join(app.getPath('pictures'), 'RefCollector');
     await fsp.mkdir(this.root, { recursive: true });
     await fsp.mkdir(path.join(this.root, 'files'), { recursive: true });
     await fsp.mkdir(path.join(this.root, 'thumbs'), { recursive: true });
@@ -62,13 +72,56 @@ class Store {
     return this.root;
   }
 
-  async setRoot(newRoot) {
+  /** 切换库目录。migrate=true 时把现有 files / thumbs / 数据库整体复制过去。 */
+  async setRoot(newRoot, { migrate = false } = {}) {
+    const from = this.root;
+    const same = from && path.resolve(from).toLowerCase() === path.resolve(newRoot).toLowerCase();
+    if (same) return this.root;
+
+    if (migrate && from && fs.existsSync(from)) {
+      await fsp.mkdir(newRoot, { recursive: true });
+      for (const sub of ['files', 'thumbs']) {
+        const src = path.join(from, sub);
+        if (!fs.existsSync(src)) continue;
+        await fsp.cp(src, path.join(newRoot, sub), { recursive: true, force: false, errorOnExist: false });
+      }
+      this.close(); // 先 checkpoint 再复制数据库，避免拷到半截 WAL
+      for (const f of ['library.db', 'library.db-wal', 'library.db-shm']) {
+        const src = path.join(from, f);
+        if (!fs.existsSync(src)) continue;
+        const dest = path.join(newRoot, f);
+        try { await fsp.copyFile(src, dest); } catch { }
+      }
+    }
+
     this.close();
     this.root = newRoot;
-    await fsp.mkdir(path.join(this.root, 'files'), { recursive: true });
-    await fsp.mkdir(path.join(this.root, 'thumbs'), { recursive: true });
-    fs.writeFileSync(this.configPath, JSON.stringify({ libraryRoot: newRoot }, null, 2));
+    this.cfg.libraryRoot = newRoot;
+    this.writeConfig();
+    await fsp.mkdir(path.join(newRoot, 'files'), { recursive: true });
+    await fsp.mkdir(path.join(newRoot, 'thumbs'), { recursive: true });
     return this.init();
+  }
+
+  getPrefs() {
+    return this.cfg.prefs || {};
+  }
+
+  setPrefs(patch) {
+    this.cfg.prefs = { ...(this.cfg.prefs || {}), ...(patch || {}) };
+    this.writeConfig();
+    return this.cfg.prefs;
+  }
+
+  /** 分类树存 config.json，用户可以增删改名 */
+  getCats() {
+    return Array.isArray(this.cfg.categories) && this.cfg.categories.length ? this.cfg.categories : null;
+  }
+
+  setCats(list) {
+    this.cfg.categories = list;
+    this.writeConfig();
+    return this.cfg.categories;
   }
 
   close() {
@@ -92,12 +145,18 @@ class Store {
   colors(id) { return this.tools.colors(id); }
   searchByColors(opts) { return this.tools.searchByColors(opts || {}); }
 
-  importPaths(paths, onProgress) { return this.tools.importPaths(paths, onProgress); }
+  importPaths(paths, onProgress, meta) { return this.tools.importPaths(paths, onProgress, meta); }
   importOne(src, meta) { return this.tools.importOne(src, meta); }
 
   setCategory(id, category, subcategory) {
     return this.tools.setCategory(id, category, subcategory);
   }
+  rename(id, name) { return this.tools.rename(id, name); }
+  removeMany(ids) { return this.tools.removeMany(ids); }
+  setCategoryMany(ids, category, subcategory) { return this.tools.setCategoryMany(ids, category, subcategory); }
+  toggleFavMany(ids, value) { return this.tools.toggleFavMany(ids, value); }
+  renameCategory(from, to) { return this.tools.renameCategory(from, to); }
+  dropCategory(name) { return this.tools.dropCategory(name); }
   toggleFav(id) { return this.tools.toggleFav(id); }
   touch(id) { return this.tools.touch(id); }
   setTags(id, tags) { return this.tools.setTags(id, tags); }

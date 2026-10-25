@@ -1,6 +1,6 @@
 {
   "name": "refcollector",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "RefCollector - 画师参考图收集器",
   "main": "electron/main.js",
   "author": "RefCollector",
@@ -33,16 +33,23 @@
     "files": [
       "electron/**/*",
       "dist/**/*",
+      "assets/**/*",
       "package.json"
     ],
     "win": {
+      "icon": "assets/icon.png",
       "target": [
         "nsis"
       ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RefCollector",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

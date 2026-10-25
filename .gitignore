@@ -13,3 +13,12 @@ library.db-shm
 demo-library/library.db
 demo-library/library.db-wal
 demo-library/library.db-shm
+
+# 打包中间产物
+build-out*/
+# NSIS 安装路径写错时误建的目录
+AppsRefCollector/
+# 调试截图
+shot-*.png
+crop-*.png
+installed.png

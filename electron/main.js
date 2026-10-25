@@ -28,8 +28,21 @@ protocol.registerSchemesAsPrivileged([
 
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
 
+/** 16 寸笔记本上别把整块屏幕占满：按工作区比例取尺寸并居中 */
+function fitToWorkArea() {
+  const b = screen.getPrimaryDisplay().workArea;
+  const width = Math.min(1280, Math.max(980, Math.round(b.width * 0.82)));
+  const height = Math.min(820, Math.max(620, Math.round(b.height * 0.8)));
+  return {
+    width,
+    height,
+    x: Math.round(b.x + (b.width - width) / 2),
+    y: Math.round(b.y + (b.height - height) / 2)
+  };
+}
+
 function loadState() {
-  const def = { width: 1360, height: 880, x: undefined, y: undefined, maximized: false };
+  const def = { ...fitToWorkArea(), maximized: false };
   try {
     const s = JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
     const displays = screen.getAllDisplays();
@@ -38,7 +51,14 @@ function loadState() {
       return s.x !== undefined && s.x + 120 > b.x && s.x < b.x + b.width - 120 &&
         s.y + 80 > b.y && s.y < b.y + b.height - 80;
     });
-    if (!visible) { s.x = undefined; s.y = undefined; }
+    if (!visible) return def;
+    // 历史尺寸可能比当前工作区还高（换了笔记本 / 改了缩放），压回工作区内
+    const cur = screen.getDisplayMatching({ x: s.x || 0, y: s.y || 0, width: s.width || 0, height: s.height || 0 });
+    const b = cur.workArea;
+    const maxW = b.width - 24;
+    const maxH = b.height - 24;
+    if (s.width > maxW) s.width = maxW;
+    if (s.height > maxH) s.height = maxH;
     return { ...def, ...s };
   } catch { return def; }
 }
@@ -57,8 +77,8 @@ function createWindow() {
     height: st.height,
     x: st.x,
     y: st.y,
-    minWidth: 960,
-    minHeight: 640,
+    minWidth: 900,
+    minHeight: 560,
     frame: false,
     thickFrame: false,
     show: false,
@@ -118,6 +138,18 @@ function buildTray() {
     { type: 'separator' },
     { label: '暂停 / 恢复剪贴板监听', click: () => { clipPaused = !clipPaused; } },
     { label: '打开库目录', click: () => shell.openPath(store.root) },
+    {
+      label: '更换库目录…',
+      click: async () => {
+        const r = await dialog.showOpenDialog(win || undefined, {
+          title: '选择新的库目录（现有素材会复制过去）',
+          properties: ['openDirectory', 'createDirectory']
+        });
+        if (r.canceled || !r.filePaths.length) return;
+        await store.setRoot(r.filePaths[0], { migrate: true });
+        if (win && !win.isDestroyed()) win.webContents.send('library:switched', { root: store.root });
+      }
+    },
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit(); } }
   ]);
@@ -251,7 +283,7 @@ ipcMain.on('win:resize-by', (e, { edge, dx, dy }) => {
   if (!w || w.isMaximized()) return;
   const b = w.getBounds();
   let { x, y, width, height } = b;
-  const MIN_W = 960, MIN_H = 640;
+  const MIN_W = 900, MIN_H = 560;
   if (edge.includes('e')) width = Math.max(MIN_W, width + dx);
   if (edge.includes('s')) height = Math.max(MIN_H, height + dy);
   if (edge.includes('w')) {
@@ -268,7 +300,7 @@ ipcMain.on('win:resize-by', (e, { edge, dx, dy }) => {
 ipcMain.handle('lib:info', () => ({
   root: store.root,
   stats: store.stats(),
-  tree: TREE
+  tree: store.getCats() || TREE
 }));
 
 ipcMain.handle('lib:list', (e, opts) => {
@@ -281,26 +313,46 @@ ipcMain.handle('lib:list', (e, opts) => {
   }));
 });
 
-ipcMain.handle('lib:import-dialog', async (e) => {
+ipcMain.handle('lib:import-dialog', async (e, opts) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   const r = await dialog.showOpenDialog(w, {
-    title: '导入参考图',
+    title: opts && opts.category ? `导入到「${opts.category}」` : '导入参考图',
     properties: ['openFile', 'openDirectory', 'multiSelections'],
     filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif'] }]
   });
   if (r.canceled || !r.filePaths.length) return null;
-  return runImport(e.sender, r.filePaths);
+  return runImport(e.sender, r.filePaths, opts && opts.category ? { category: opts.category } : {});
 });
 
-async function runImport(sender, paths) {
+async function runImport(sender, paths, meta = {}) {
   const res = await store.importPaths(paths, (p) => {
     if (!sender.isDestroyed()) sender.send('import:progress', p);
-  });
+  }, meta);
   if (!sender.isDestroyed()) sender.send('import:done', { ...res, stats: store.stats() });
   return res;
 }
 
-ipcMain.handle('lib:import-paths', async (e, paths) => runImport(e.sender, paths));
+ipcMain.handle('lib:import-paths', async (e, payload) => {
+  const paths = Array.isArray(payload) ? payload : payload.paths;
+  const meta = Array.isArray(payload) ? {} : { category: payload.category };
+  return runImport(e.sender, paths, meta || {});
+});
+
+/* ---- 分类自定义 ---- */
+ipcMain.handle('lib:cats', () => store.getCats() || TREE);
+ipcMain.handle('lib:save-cats', (e, list) => store.setCats(list));
+ipcMain.handle('lib:rename-cat', (e, { from, to }) => store.renameCategory(from, to));
+ipcMain.handle('lib:drop-cat', (e, name) => store.dropCategory(name));
+
+/* ---- 多选批量 ---- */
+ipcMain.handle('lib:remove-many', async (e, ids) => ({ n: await store.removeMany(ids), stats: store.stats() }));
+ipcMain.handle('lib:set-category-many', (e, { ids, category, subcategory }) => store.setCategoryMany(ids, category, subcategory || ''));
+ipcMain.handle('lib:toggle-fav-many', (e, { ids, value }) => store.toggleFavMany(ids, value));
+
+ipcMain.handle('lib:set-tags', (e, { id, tags }) => {
+  const it = store.setTags(id, tags);
+  return it ? { id: it.id, tags: it.tags } : null;
+});
 
 ipcMain.handle('lib:import-file', async (e, { file, category, subcategory }) => {
   const ok = await store.importOne(file, { category, subcategory, name: path.basename(file) });
@@ -333,13 +385,27 @@ ipcMain.handle('lib:reveal', (e, id) => {
 
 ipcMain.handle('lib:open-root', () => shell.openPath(store.root));
 
-ipcMain.handle('lib:choose-root', async (e) => {
+ipcMain.handle('lib:pick-root', async (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
-  const r = await dialog.showOpenDialog(w, { title: '选择库目录', properties: ['openDirectory', 'createDirectory'] });
+  const r = await dialog.showOpenDialog(w, {
+    title: '选择库目录',
+    properties: ['openDirectory', 'createDirectory']
+  });
   if (r.canceled || !r.filePaths.length) return null;
-  const root = await store.setRoot(r.filePaths[0]);
-  return { root, stats: store.stats() };
+  return r.filePaths[0];
 });
+
+ipcMain.handle('lib:apply-root', async (e, { root: next, migrate }) => {
+  const root = await store.setRoot(next, { migrate: !!migrate });
+  const payload = { root, stats: store.stats() };
+  if (!e.sender.isDestroyed()) e.sender.send('library:switched', payload);
+  return payload;
+});
+
+ipcMain.handle('lib:rename', (e, { id, name }) => store.rename(id, name));
+
+ipcMain.handle('ui:get-prefs', () => store.getPrefs());
+ipcMain.handle('ui:set-prefs', (e, patch) => store.setPrefs(patch));
 
 ipcMain.handle('lib:copy-image', async (e, id) => {
   const it = store.getById(id);
