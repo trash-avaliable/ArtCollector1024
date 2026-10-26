@@ -4,9 +4,7 @@ import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
-import { DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type Sort, type Stats, type Toast, type Tree, type View } from './types';
-
-const EMPTY_STATS: Stats = { total: 0, inbox: 0, fav: 0, week: 0, size: 0, root: '' };
+import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type Sort, type Stats, type Toast, type Tree, type View } from './types';
 
 const idsOf = (s: Set<string>): string[] => {
   const out: string[] = [];
@@ -15,7 +13,7 @@ const idsOf = (s: Set<string>): string[] => {
 };
 
 const VIEW_LABEL: Record<View, string> = {
-  all: '全部素材', inbox: '待分类', fav: '收藏', recent: '最近浏览'
+  all: '全部素材', inbox: '待分类', fav: '收藏', recent: '最近浏览', trash: '回收站'
 };
 
 export default function App() {
@@ -27,9 +25,11 @@ export default function App() {
 
   const [view, setView] = useState<View>('all');
   const [category, setCategory] = useState<string | null>(null);
+  const [sub, setSub] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('new');
   const [colorFilter, setColorFilter] = useState<string | null>(null);
+  const [sim, setSim] = useState<{ id: string; name: string } | null>(null);
   const dq = useDebounced(query, 180);
 
   const [railViews, setRailViews] = useState<View[]>(DEFAULT_VIEWS);
@@ -48,28 +48,39 @@ export default function App() {
   const [editSignal, setEditSignal] = useState(0);
   const [askRoot, setAskRoot] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string[] | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState<{ ids: string[]; all?: boolean } | null>(null);
   const [confirmCat, setConfirmCat] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
+  const [bridge, setBridge] = useState<{ port: number; token: string; extDir: string } | null>(null);
+
+  useEffect(() => {
+    if (!settings) return;
+    window.api.bridge.info().then(setBridge).catch(() => { });
+  }, [settings]);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const fileOverTimer = useRef<any>(null);
 
-  const refresh = useCallback(async (opts?: { view?: View; category?: string | null; query?: string; sort?: Sort }) => {
+  const refresh = useCallback(async (opts?: { view?: View; category?: string | null; sub?: string | null; query?: string; sort?: Sort }) => {
     const v = opts?.view ?? view;
     const c = opts?.category === undefined ? category : opts.category;
+    const s2 = opts?.sub === undefined ? sub : opts.sub;
     const q = opts?.query ?? dq;
     const s = opts?.sort ?? sort;
     const [cnt, st] = await Promise.all([window.api.lib.counts(), window.api.lib.stats()]);
-    if (colorFilter) {
+    if (sim) {
+      const list = await window.api.lib.similar({ id: sim.id, limit: 60 });
+      setItems(list);
+    } else if (colorFilter) {
       const list = await window.api.lib.searchColors({ colors: [colorFilter], threshold: 18, limit: 300, category: c });
       setItems(list);
     } else {
-      const list = await window.api.lib.list({ view: v, category: c, query: q, sort: s });
+      const list = await window.api.lib.list({ view: v, category: c, subcategory: s2, query: q, sort: s });
       setItems(list);
     }
     setCounts(cnt || {});
     setStats(st);
-  }, [view, category, dq, sort, colorFilter]);
+  }, [view, category, sub, dq, sort, colorFilter, sim]);
 
   const refreshRef = useRef(refresh);
   useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -107,7 +118,7 @@ export default function App() {
     return () => { off1(); off2(); off3(); off4(); off5(); off6(); };
   }, []);
 
-  useEffect(() => { refresh(); }, [view, category, dq, sort, colorFilter]);
+  useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim]);
 
   useEffect(() => {
     if (!tree.length) return;
@@ -119,19 +130,34 @@ export default function App() {
     });
   }, [tree]);
 
+  const doImport = async () => {
+    setBusy('选择中…');
+    const r = await window.api.lib.importDialog(category ? { category, subcategory: sub || undefined } : undefined);
+    if (!r) setBusy('');
+  };
+
+  const importTo = async (cat: string) => {
+    setBusy('选择中…');
+    const r = await window.api.lib.importDialog({ category: cat });
+    if (!r) setBusy('');
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const typing = t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA';
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); doImport(); }
       if (e.key === 'Escape') {
+        if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
         setLightboxId(null); setClip(null);
-        setConfirmDel(null); setConfirmCat(null); setSettings(false);
+        setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setSettings(false);
       }
       if (e.key === 'F2' && selectedIds.size === 1 && !typing) { e.preventDefault(); setEditSignal(n => n + 1); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size && !typing) {
         e.preventDefault();
-        setConfirmDel(Array.from(selectedIds));
+        const ids = idsOf(selectedIds);
+        if (view === 'trash') setConfirmPurge({ ids });
+        else setConfirmDel(ids);
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !typing) {
         e.preventDefault();
@@ -140,7 +166,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, items]);
+  }, [selectedIds, items, view, category, sub]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => { e.preventDefault(); };
@@ -169,18 +195,6 @@ export default function App() {
       window.removeEventListener('drop', onDrop);
     };
   }, [category]);
-
-  const doImport = async () => {
-    setBusy('选择中…');
-    const r = await window.api.lib.importDialog(category ? { category } : undefined);
-    if (!r) setBusy('');
-  };
-
-  const importTo = async (cat: string) => {
-    setBusy('选择中…');
-    const r = await window.api.lib.importDialog({ category: cat });
-    if (!r) setBusy('');
-  };
 
   const onReorder = (kind: 'view' | 'cat', from: string, to: string) => {
     const move = <T,>(arr: T[], a: T, b: T): T[] => {
@@ -214,6 +228,7 @@ export default function App() {
     setRailCats(prev => [...prev, name]);
     await window.api.lib.saveCats(next);
     setCategory(name);
+    setSub(null);
     setToast({ msg: `已新建分类「${name}」` });
   };
 
@@ -236,7 +251,7 @@ export default function App() {
     setRailCats(prev => prev.filter(c => c !== name));
     await window.api.lib.saveCats(next);
     const n = await window.api.lib.dropCat(name);
-    if (category === name) setCategory(null);
+    if (category === name) { setCategory(null); setSub(null); }
     await refresh();
     setToast({ msg: `已删除分类「${name}」，${n} 张图退回待分类` });
   };
@@ -265,6 +280,16 @@ export default function App() {
     setLastId(id);
   };
 
+  const onBoxSelect = (ids: string[], additive: boolean) => {
+    setSelectedIds(prev => {
+      if (!ids.length) return additive ? prev : new Set<string>();
+      const next = additive ? new Set(prev) : new Set<string>();
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+    if (ids.length) setLastId(ids[ids.length - 1]);
+  };
+
   const clearSel = () => { setSelectedIds(new Set()); setLastId(null); };
 
   const batchCategory = async (cat: string) => {
@@ -287,7 +312,28 @@ export default function App() {
     setConfirmDel(null);
     clearSel();
     await refresh();
-    setToast({ msg: `已删除 ${r.n} 张（含磁盘文件）` });
+    setToast({
+      msg: `已移到回收站 ${r.n} 张`,
+      undo: async () => {
+        await window.api.lib.restoreMany(ids);
+        await refresh();
+      }
+    });
+  };
+
+  const doRestore = async (ids: string[]) => {
+    const r = await window.api.lib.restoreMany(ids);
+    clearSel();
+    await refresh();
+    setToast({ msg: `已恢复 ${r.n} 张` });
+  };
+
+  const doPurge = async (ids: string[], all = false) => {
+    setConfirmPurge(null);
+    const r = all ? await window.api.lib.purgeAll() : await window.api.lib.purgeMany(ids);
+    clearSel();
+    await refresh();
+    setToast({ msg: `已彻底删除 ${r.n} 张（磁盘文件同步删除）` });
   };
 
   const onDropOnCategory = async (cat: string) => {
@@ -309,6 +355,22 @@ export default function App() {
     }
   };
 
+  const onDropOnSub = async (cat: string, s: string) => {
+    const id = draggingId;
+    setDraggingId(null);
+    if (!id) return;
+    const prev = items.find(i => i.id === id);
+    await window.api.lib.setCategory({ id, category: cat, subcategory: s });
+    await refresh();
+    setToast({
+      msg: `已移到「${cat} / ${s}」`,
+      undo: async () => {
+        await window.api.lib.setCategory({ id, category: prev?.category || '待分类', subcategory: prev?.subcategory });
+        await refresh();
+      }
+    });
+  };
+
   const changeCategory = async (id: string, cat: string) => {
     const prev = items.find(i => i.id === id);
     await window.api.lib.setCategory({ id, category: cat });
@@ -320,6 +382,12 @@ export default function App() {
         await refresh();
       }
     });
+  };
+
+  const changeSubCategory = async (id: string, cat: string, s: string) => {
+    await window.api.lib.setCategory({ id, category: cat, subcategory: s });
+    await refresh();
+    setToast({ msg: `子类改为「${s || '未分类'}」` });
   };
 
   const renameItem = async (id: string, name: string): Promise<string | null> => {
@@ -363,17 +431,31 @@ export default function App() {
   const selected = items.find(i => i.id === selectedIds.values().next().value) || null;
   const lightboxItem = items.find(i => i.id === lightboxId) || null;
   const cats = tree.map(([c]) => c);
+  
+
+  const navLightbox = (dir: -1 | 1) => {
+    if (!lightboxId) return;
+    const i = items.findIndex(x => x.id === lightboxId);
+    if (i < 0) return;
+    const n = items[(i + dir + items.length) % items.length];
+    if (n) setLightboxId(n.id);
+  };
 
   const crumb = useMemo(() => {
     const parts = ['库'];
-    if (colorFilter) parts.push(`颜色 ${colorFilter}`);
-    if (category) parts.push(category); else parts.push(VIEW_LABEL[view]);
+    if (sim) {
+      parts.push(`相似于「${sim.name}」`);
+    } else {
+      if (colorFilter) parts.push(`颜色 ${colorFilter}`);
+      if (category) parts.push(sub ? `${category} / ${sub}` : category);
+      else parts.push(VIEW_LABEL[view]);
+    }
     if (dq) parts.push(`搜索「${dq}」`);
     parts.push(`${items.length} 项`);
     return parts.join('  /  ');
-  }, [category, view, dq, items.length, colorFilter]);
+  }, [category, sub, view, dq, items.length, colorFilter, sim]);
 
-  const fadeKey = `${view}|${category}|${dq}|${sort}|${colorFilter}`;
+  const fadeKey = `${view}|${category}|${sub}|${dq}|${sort}|${colorFilter}|${sim?.id || ''}`;
 
   return (
     <div className="win" data-ark-theme="endfield" data-ark-depth="complex">
@@ -381,18 +463,21 @@ export default function App() {
       <div className="app" data-dock={selected ? 'open' : 'idle'}>
         <Rail
           view={view}
-          setView={v => { setView(v); setCategory(null); clearSel(); }}
+          setView={v => { setView(v); setCategory(null); setSub(null); setSim(null); setColorFilter(null); clearSel(); }}
           stats={stats}
           tree={tree}
           counts={counts}
           category={category}
-          setCategory={c => { setCategory(c); clearSel(); }}
+          setCategory={c => { setCategory(c); setSub(null); setSim(null); clearSel(); }}
+          sub={sub}
+          setSub={setSub}
           railViews={railViews}
           railCats={railCats}
           onReorder={onReorder}
           dropCat={dropCat}
           setDropCat={setDropCat}
           onDropOnCategory={onDropOnCategory}
+          onDropOnSub={onDropOnSub}
           onOpenRoot={() => window.api.lib.openRoot()}
           onAddCat={addCat}
           onRenameCat={renameCat}
@@ -408,10 +493,13 @@ export default function App() {
             sort={sort}
             setSort={setSort}
             category={category}
+            sub={sub}
             cats={cats}
-            setCategory={c => { setCategory(c); clearSel(); }}
+            setCategory={c => { setCategory(c); setSub(null); setSim(null); clearSel(); }}
             colorFilter={colorFilter}
             onClearColor={() => setColorFilter(null)}
+            simLabel={sim ? sim.name : null}
+            onClearSim={() => setSim(null)}
             onImport={doImport}
             onImportTo={importTo}
           />
@@ -429,26 +517,32 @@ export default function App() {
                 onDragOut={id => window.api.lib.dragOut(id)}
                 onDragStart={setDraggingId}
                 onDragEnd={() => { setDraggingId(null); setDropCat(null); }}
+                onBoxSelect={onBoxSelect}
               />
             )}
           </div>
           <BatchBar
             count={selectedIds.size}
             cats={cats}
+            mode={view === 'trash' ? 'trash' : 'normal'}
             onCategory={batchCategory}
             onFav={batchFav}
             onDragOut={() => { const id = idsOf(selectedIds)[0]; if (id) window.api.lib.dragOut(id); }}
-            onDelete={() => setConfirmDel(Array.from(selectedIds))}
+            onDelete={() => setConfirmDel(idsOf(selectedIds))}
             onClear={clearSel}
+            onRestore={() => doRestore(idsOf(selectedIds))}
+            onPurge={() => setConfirmPurge({ ids: idsOf(selectedIds) })}
+            onPurgeAll={() => setConfirmPurge({ ids: [], all: true })}
           />
         </main>
 
         <Dock
           stats={stats}
           count={items.length}
-          label={category ? `${category} / FILTERED` : VIEW_LABEL[view]}
+          label={category ? `${category}${sub ? ' / ' + sub : ''} / FILTERED` : VIEW_LABEL[view]}
           selected={selected}
           cats={cats}
+          tree={tree}
           busy={busy}
           editSignal={editSignal}
           onFav={async id => { await window.api.lib.toggleFav(id); await refresh(); }}
@@ -456,10 +550,13 @@ export default function App() {
           onReveal={id => window.api.lib.reveal(id)}
           onRemove={id => setConfirmDel([id])}
           onCategory={changeCategory}
+          onSubCategory={changeSubCategory}
           onDragOut={id => window.api.lib.dragOut(id)}
           onRename={renameItem}
           onTags={setTags}
-          onColorClick={hex => setColorFilter(hex)}
+          onColorClick={hex => { setSim(null); setColorFilter(hex); }}
+          onSimilar={id => { const it = items.find(i => i.id === id); setSim({ id, name: it?.name || '' }); setColorFilter(null); setCategory(null); setSub(null); clearSel(); }}
+          onPin={id => window.api.pin.open(id)}
         />
       </div>
 
@@ -467,7 +564,7 @@ export default function App() {
       <ResizeHandles />
 
       {fileOver && <DropVeil />}
-      {lightboxItem && <Lightbox item={lightboxItem} onClose={() => setLightboxId(null)} />}
+      {lightboxItem && <Lightbox item={lightboxItem} onClose={() => setLightboxId(null)} onNav={navLightbox} />}
       {clip && <ClipCard clip={clip} onSave={saveClip} onIgnore={() => setClip(null)} />}
       {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
@@ -477,7 +574,27 @@ export default function App() {
             <div className="mt">库设置</div>
             <div className="mp" title={root}>{root || '未初始化'}</div>
             <div className="mh">
-              当前库占用 {stats.total} 张图。换目录时可以连同素材一起搬过去。
+              当前库占用 {stats.total} 张图{stats.trash ? `，回收站里还有 ${stats.trash} 张` : ''}。换目录时可以连同素材一起搬过去。
+            </div>
+            <div className="bridgebox">
+              <div className="bh">浏览器扩展 · 右键存图</div>
+              <div className="brow"><span>端口</span><b>{bridge?.port ?? '—'}</b></div>
+              <div className="brow">
+                <span>令牌</span>
+                <b className="tk">{bridge?.token ?? '—'}</b>
+                <button
+                  onClick={() => bridge && navigator.clipboard?.writeText(bridge.token)}
+                  title="复制令牌，填到扩展设置里"
+                >复制</button>
+              </div>
+              <div className="brow">
+                <span>目录</span>
+                <b className="tk" title={bridge?.extDir}>{bridge?.extDir ?? '—'}</b>
+                <button onClick={() => window.api.bridge.openExt()}>打开</button>
+              </div>
+              <div className="btip">
+                chrome://extensions → 开「开发者模式」→「加载已解压的扩展程序」→ 选上面这个目录，再把令牌粘到扩展设置页。
+              </div>
             </div>
             <div className="mb">
               <button onClick={() => setSettings(false)}>关闭</button>
@@ -491,13 +608,30 @@ export default function App() {
       {confirmDel && (
         <div className="modal-veil" onClick={() => setConfirmDel(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="mt">删除 {confirmDel.length} 张图片</div>
+            <div className="mt">移出 {confirmDel.length} 张图片</div>
             <div className="mh">
-              会同时删除库里的文件与缩略图，<b>不可恢复</b>。只是不想在这里看到的话，可以改分类。
+              会移到<b>回收站</b>，原图还在盘上，随时可以恢复。想彻底删掉就去回收站里清空。
             </div>
             <div className="mb">
               <button onClick={() => setConfirmDel(null)}>取消</button>
-              <button className="primary danger" onClick={() => doDelete(confirmDel)}>确认删除</button>
+              <button className="primary" onClick={() => doDelete(confirmDel)}>移到回收站</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmPurge && (
+        <div className="modal-veil" onClick={() => setConfirmPurge(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="mt">{confirmPurge.all ? '清空回收站' : `彻底删除 ${confirmPurge.ids.length} 张`}</div>
+            <div className="mh">
+              这次是<b>真删</b>：数据库记录、原图、缩略图一起删掉，<b>不可恢复</b>。
+            </div>
+            <div className="mb">
+              <button onClick={() => setConfirmPurge(null)}>取消</button>
+              <button className="primary danger" onClick={() => doPurge(confirmPurge.ids, confirmPurge.all)}>
+                {confirmPurge.all ? '清空' : '彻底删除'}
+              </button>
             </div>
           </div>
         </div>

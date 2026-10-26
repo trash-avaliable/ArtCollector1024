@@ -107,6 +107,15 @@ class Store {
     return this.cfg.prefs || {};
   }
 
+  /** 浏览器扩展用的本机令牌：首次启动生成，写进 config.json */
+  ensureBridgeToken() {
+    if (!this.cfg.bridgeToken) {
+      this.cfg.bridgeToken = require('crypto').randomBytes(8).toString('hex');
+      this.writeConfig();
+    }
+    return this.cfg.bridgeToken;
+  }
+
   setPrefs(patch) {
     this.cfg.prefs = { ...(this.cfg.prefs || {}), ...(patch || {}) };
     this.writeConfig();
@@ -144,6 +153,7 @@ class Store {
   counts() { return this.tools.counts(); }
   colors(id) { return this.tools.colors(id); }
   searchByColors(opts) { return this.tools.searchByColors(opts || {}); }
+  similar(id, limit) { return this.tools.similar(id, limit); }
 
   importPaths(paths, onProgress, meta) { return this.tools.importPaths(paths, onProgress, meta); }
   importOne(src, meta) { return this.tools.importOne(src, meta); }
@@ -153,6 +163,9 @@ class Store {
   }
   rename(id, name) { return this.tools.rename(id, name); }
   removeMany(ids) { return this.tools.removeMany(ids); }
+  restoreMany(ids) { return this.tools.restoreMany(ids); }
+  purgeMany(ids) { return this.tools.purgeMany(ids); }
+  purgeAll() { return this.tools.purgeAll(); }
   setCategoryMany(ids, category, subcategory) { return this.tools.setCategoryMany(ids, category, subcategory); }
   toggleFavMany(ids, value) { return this.tools.toggleFavMany(ids, value); }
   renameCategory(from, to) { return this.tools.renameCategory(from, to); }

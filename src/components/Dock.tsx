@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { fmtDate, fmtSize, type ColorHit, type Item, type Stats } from '../types';
+import { fmtDate, fmtSize, type ColorHit, type Item, type Stats, type Tree } from '../types';
 import { Select } from './Select';
 
 export function Dock({
-  stats, count, label, selected, cats, busy, editSignal,
-  onFav, onCopy, onReveal, onRemove, onCategory, onDragOut, onRename,
-  onTags, onColorClick
+  stats, count, label, selected, cats, tree, busy, editSignal,
+  onFav, onCopy, onReveal, onRemove, onCategory, onSubCategory, onDragOut, onRename,
+  onTags, onColorClick, onSimilar, onPin
 }: {
-  stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; busy: string;
+  stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; tree: Tree; busy: string;
   editSignal: number;
   onFav: (id: string) => void; onCopy: (id: string) => void; onReveal: (id: string) => void;
   onRemove: (id: string) => void; onCategory: (id: string, cat: string) => void;
+  onSubCategory: (id: string, cat: string, sub: string) => void;
   onDragOut: (id: string) => void; onRename: (id: string, name: string) => Promise<string | null>;
   onTags: (id: string, tags: string[]) => void;
   onColorClick: (hex: string) => void;
+  onSimilar: (id: string) => void;
+  onPin: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -123,14 +126,22 @@ export function Dock({
             </div>
 
             <div className="sect">
-              <div className="sh"><span>CLASSIFICATION / 分类</span><em>可改判</em></div>
-              <Select
-                value={selected.category}
-                options={cats.map(c => ({ value: c, label: c }))}
-                onChange={v => onCategory(selected.id, v)}
-                placeholder="未分类"
-              />
-              {selected.subcategory && <div className="subcat">当前子类 · {selected.subcategory}</div>}
+              <div className="sh"><span>CLASSIFICATION / 分类</span><em>两级都可改</em></div>
+              <div className="cat2">
+                <Select
+                  value={selected.category}
+                  options={cats.map(c => ({ value: c, label: c }))}
+                  onChange={v => onCategory(selected.id, v)}
+                  placeholder="未分类"
+                />
+                <Select
+                  value={selected.subcategory || ''}
+                  options={(tree.find(([c]) => c === selected.category)?.[1] || []).map(s => ({ value: s, label: s }))}
+                  onChange={v => onSubCategory(selected.id, selected.category, v)}
+                  placeholder="子类"
+                  size="sm"
+                />
+              </div>
             </div>
 
             <div className="sect">
@@ -208,6 +219,8 @@ export function Dock({
               </button>
               <button onClick={() => onCopy(selected.id)}>复制图片</button>
               <button onClick={() => onReveal(selected.id)}>定位文件</button>
+              <button onClick={() => onSimilar(selected.id)}>相似图</button>
+              <button onClick={() => onPin(selected.id)} title="开一个置顶小窗当参考">置顶</button>
               <button className="danger" onClick={() => onRemove(selected.id)}>移出库</button>
             </div>
             <button className="dragout" onClick={() => onDragOut(selected.id)}>

@@ -670,7 +670,7 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 .tg button { font-size: 11px; color: rgba(255, 255, 255, .45); }
 .tg button:hover { color: #fff; }
 .taginput {
-  width: 70px; height: 22px; padding: 0 5px; font-size: 10.5px; color: #fff;
+  flex: 1 1 110px; min-width: 88px; height: 22px; padding: 0 5px; font-size: 10.5px; color: #fff;
   background: transparent; border: 1px dashed rgba(255, 255, 255, .28);
 }
 .taginput::placeholder { color: rgba(255, 255, 255, .32); }
@@ -719,6 +719,121 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
   .row { height: 24px; }
   .dfoot { padding: 8px 14px 10px; }
 }
+
+/* ================= P1：框选 / 回收站 / 子分类 / 相似图 ================= */
+
+/* 橡皮筋框选：fixed 挂 body，不做过渡才跟手 */
+.rubber {
+  position: fixed; z-index: 60; pointer-events: none;
+  border: 1px solid var(--ink);
+  background: rgba(255, 250, 0, .1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .55);
+}
+
+/* 回收站里的图降饱和，跟正常素材一眼区分 */
+.card.gone .frame img { filter: grayscale(.6) brightness(.95); opacity: .82; }
+
+/* 相似度角标 */
+.card .info .sim {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .02em;
+  color: var(--signal); border: 1px solid rgba(255, 250, 0, .35); padding: 1px 4px;
+  flex: 0 0 auto;
+}
+
+/* 左栏分类树：多出 12px 的展开箭头 */
+.cat { grid-template-columns: 12px 1fr auto; }
+.cat .caret {
+  width: 12px; height: 18px; display: grid; place-items: center;
+  font-size: 9px; line-height: 1; color: var(--muted-3);
+  transition: transform var(--direct) var(--ease), color var(--direct) var(--ease);
+}
+.cat .caret.open { transform: rotate(90deg); color: var(--ink); }
+.cat .caret.none { opacity: .25; }
+.cat:hover .caret { color: var(--ink); }
+.cat.on .caret { color: var(--signal); }
+.subs { animation: fadeIn 140ms var(--ease); }
+.catsub {
+  display: flex; align-items: center; height: 25px; margin: 0 8px 1px 20px;
+  padding: 0 8px 0 10px; font-size: 11.5px; color: var(--muted);
+  border-left: 1px solid var(--line-2);
+  transition: background var(--direct) var(--ease), color var(--direct) var(--ease), border-color var(--direct) var(--ease);
+}
+.catsub span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catsub:hover { background: rgba(26, 28, 23, .05); color: var(--ink); }
+.catsub.on { background: var(--ink); color: #fff; border-left-color: var(--signal); }
+.catsub.drop { background: var(--ink); color: var(--signal); }
+
+/* 检查器：分类 + 子类两级下拉并排 */
+.cat2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 6px; }
+
+/* 检查器底栏：6 个按钮排 3 列 2 行，不再顶掉下面的拖拽条 */
+.acts { grid-template-columns: 1fr 1fr 1fr; }
+
+/* 大图：拖拽平移不吃过渡，取色时用十字光标 */
+.lightbox img { transition: none; cursor: grab; touch-action: none; }
+.lightbox img:active { cursor: grabbing; }
+.lightbox img.picking { cursor: crosshair; }
+.lbnav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 84px; display: grid; place-items: center;
+  font-size: 26px; line-height: 1; color: rgba(255, 255, 255, .5);
+  background: rgba(10, 12, 8, .4); border: 1px solid rgba(255, 255, 255, .12);
+  transition: color var(--direct) var(--ease), background var(--direct) var(--ease);
+}
+.lbnav:hover { color: var(--signal); background: rgba(10, 12, 8, .75); }
+.lbnav.prev { left: 16px; }
+.lbnav.next { right: 16px; }
+.pickhud {
+  position: absolute; top: 18px; left: 18px; z-index: 2;
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px;
+  background: var(--ink); color: #fff; box-shadow: var(--sh-2);
+  animation: popIn 160ms var(--ease);
+}
+.pickhud i { width: 22px; height: 22px; border: 1px solid rgba(255, 255, 255, .3); }
+.pickhud b { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; }
+.pickhud button {
+  height: 22px; padding: 0 7px; font-size: 10.5px;
+  border: 1px solid rgba(255, 255, 255, .26); color: rgba(255, 255, 255, .85);
+}
+.pickhud button:hover { border-color: var(--signal); color: var(--signal); }
+.pickhud .x { border: none; font-size: 13px; color: rgba(255, 255, 255, .5); }
+.pickhud .x:hover { color: #fff; }
+
+/* 相似图 chip */
+.fchip.sim { border-color: var(--ink); }
+.fchip.sim::before {
+  content: ""; width: 5px; height: 5px; background: var(--signal);
+  box-shadow: 0 0 0 1px rgba(26, 28, 23, .25);
+}
+
+/* 设置弹窗里的扩展桥接信息 */
+.bridgebox {
+  margin-top: 14px; padding: 10px 11px; border: 1px solid var(--line); background: var(--panel-2);
+}
+.bridgebox .bh {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; color: var(--muted);
+  margin-bottom: 7px;
+}
+.bridgebox .brow {
+  display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 8px;
+  height: 26px; font-size: 11.5px;
+}
+.bridgebox .brow span { color: var(--muted); }
+.bridgebox .brow b { font-family: var(--mono); font-size: 11.5px; color: var(--ink); letter-spacing: .04em; }
+.bridgebox .brow .tk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bridgebox .brow button {
+  height: 22px; padding: 0 8px; font-size: 10.5px; border: 1px solid var(--line-2); background: #fff;
+}
+.bridgebox .brow button:hover { border-color: var(--ink); }
+.bridgebox .btip { margin-top: 6px; font-size: 10.5px; line-height: 1.6; color: var(--muted-2); }
+.bridgebox .bext {
+  margin-top: 8px; height: 28px; padding: 0 10px; font-size: 11px;
+  border: 1px solid var(--ink); background: #fff;
+}
+.bridgebox .bext:hover { background: var(--ink); color: #fff; }
+
+/* 回收站批量条的主操作 */
+.batchbar .primary { background: var(--grad-signal); color: var(--ink); font-weight: 600; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

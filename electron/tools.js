@@ -48,6 +48,40 @@ function classify(text) {
   return { category: '待分类', subcategory: '收件箱' };
 }
 
+/**
+ * 文本规则没命中时的图像兜底：只靠宽高比与色板统计量，不需要任何模型。
+ * 判不出来就返回 null，让它老实待在「待分类」里。
+ */
+function classifyVisual({ w, h, palette }) {
+  if (!w || !h) return null;
+  const ratio = h / w;
+
+  if (palette && palette.length) {
+    let chroma = 0, light = 0, wsum = 0;
+    for (const c of palette) {
+      const p = Math.max(c.pct, 0.5);
+      chroma += Math.sqrt(c.a * c.a + c.b * c.b) * p;
+      light += c.l * p;
+      wsum += p;
+    }
+    chroma /= wsum || 1;
+    light /= wsum || 1;
+
+    // 近灰 + 偏亮：线稿 / 排线
+    if (chroma < 10 && light > 62) return { category: '线条练习', subcategory: '线稿' };
+    // 近灰 + 偏暗：明暗关系
+    if (chroma < 10) return { category: '色彩与光影', subcategory: '明暗关系' };
+    // 高彩度：配色方案
+    if (chroma > 42) return { category: '色彩与光影', subcategory: '配色方案' };
+  }
+
+  // 极长竖图多为教程长图 / 步骤图
+  if (ratio > 2.4) return { category: '教程与拆解', subcategory: '教程长图' };
+  // 很宽的横幅多为场景或氛围图
+  if (ratio < 0.5) return { category: '场景与背景', subcategory: '氛围' };
+  return null;
+}
+
 function py(text) {
   try { return pinyin(text, { toneType: 'none', type: 'array' }).join('').toLowerCase(); }
   catch { return ''; }
@@ -127,6 +161,7 @@ class LibraryTools {
       id: r.id, sha: r.sha, ext: r.ext, name: r.name, w: r.w, h: r.h, size: r.size,
       addedAt: r.added_at, usedAt: r.used_at, category: r.category, subcategory: r.subcategory,
       tags, source: r.source, sourceUrl: r.source_url, fname: r.fname || '',
+      deletedAt: r.deleted_at || 0,
       favorite: !!r.favorite, hasThumb: !!r.has_thumb,
       _py: r.py, _init: r.py_init, _cpy: r.cat_py, _cinit: r.cat_py_init
     };
@@ -162,18 +197,22 @@ class LibraryTools {
   }
 
   list(opts = {}) {
-    const { query = '', view = 'all', category = null, sort = 'new' } = opts;
+    const { query = '', view = 'all', category = null, subcategory = null, sort = 'new' } = opts;
+    const all = this.q.all.all();
+    // 回收站是独立视图，其余视图一律看不到已删的
+    const live = all.filter((r) => (view === 'trash' ? r.deleted_at > 0 : !r.deleted_at));
     let rows;
-    if (view === 'inbox') rows = this.q.all.all().filter((r) => r.category === '待分类');
-    else if (view === 'fav') rows = this.q.all.all().filter((r) => r.favorite);
+    if (view === 'inbox') rows = live.filter((r) => r.category === '待分类');
+    else if (view === 'fav') rows = live.filter((r) => r.favorite);
     else if (view === 'recent') {
-      rows = this.q.all.all()
+      rows = live
         .filter((r) => r.used_at > 0)
         .sort((a, b) => b.used_at - a.used_at)
         .slice(0, 200);
-    } else rows = this.q.all.all();
+    } else rows = live;
 
     if (category) rows = rows.filter((r) => r.category === category);
+    if (subcategory) rows = rows.filter((r) => r.subcategory === subcategory);
 
     const tags = this.tagsFor(rows.map((r) => r.id));
     let items = rows.map((r) => this.toItem(r, tags.get(r.id) || []));
@@ -198,18 +237,20 @@ class LibraryTools {
   stats() {
     const one = (sql, ...p) => this.db.prepare(sql).get(...p).n;
     return {
-      total: one('SELECT COUNT(*) AS n FROM assets'),
-      inbox: one('SELECT COUNT(*) AS n FROM assets WHERE category = ?', '待分类'),
-      fav: one('SELECT COUNT(*) AS n FROM assets WHERE favorite = 1'),
-      week: one('SELECT COUNT(*) AS n FROM assets WHERE added_at >= ?', Date.now() - 7 * 864e5),
-      size: one('SELECT COALESCE(SUM(size), 0) AS n FROM assets'),
+      total: one('SELECT COUNT(*) AS n FROM assets WHERE deleted_at = 0'),
+      inbox: one('SELECT COUNT(*) AS n FROM assets WHERE category = ? AND deleted_at = 0', '待分类'),
+      fav: one('SELECT COUNT(*) AS n FROM assets WHERE favorite = 1 AND deleted_at = 0'),
+      week: one('SELECT COUNT(*) AS n FROM assets WHERE added_at >= ? AND deleted_at = 0', Date.now() - 7 * 864e5),
+      size: one('SELECT COALESCE(SUM(size), 0) AS n FROM assets WHERE deleted_at = 0'),
+      trash: one('SELECT COUNT(*) AS n FROM assets WHERE deleted_at > 0'),
+      trashSize: one('SELECT COALESCE(SUM(size), 0) AS n FROM assets WHERE deleted_at > 0'),
       root: this.root
     };
   }
 
   counts() {
     const out = {};
-    for (const r of this.db.prepare('SELECT category, COUNT(*) AS n FROM assets GROUP BY category').all()) {
+    for (const r of this.db.prepare('SELECT category, COUNT(*) AS n FROM assets WHERE deleted_at = 0 GROUP BY category').all()) {
       out[r.category] = r.n;
     }
     return out;
@@ -321,9 +362,13 @@ class LibraryTools {
 
     const name = meta.name || path.basename(srcPath);
     const hay = [name, meta.source || '', meta.sourceUrl || '', path.dirname(srcPath)].join(' ');
-    const cls = meta.category
-      ? { category: meta.category, subcategory: meta.subcategory || '' }
-      : classify(hay);
+    let cls;
+    if (meta.category) {
+      cls = { category: meta.category, subcategory: meta.subcategory || '' };
+    } else {
+      cls = classify(hay);
+      if (cls.category === '待分类') cls = classifyVisual({ w, h, palette }) || cls;
+    }
 
     const item = {
       id: sha.slice(0, 16), sha, ext, name, w, h,
@@ -373,12 +418,51 @@ class LibraryTools {
     return { added, dup, failed, total: files.length };
   }
 
-  async removeMany(ids) {
+  /** 移到回收站：只打标记，原图与缩略图留在盘上，随时可恢复 */
+  removeMany(ids) {
+    const stmt = this.db.prepare('UPDATE assets SET deleted_at = ? WHERE id = ? AND deleted_at = 0');
+    const now = Date.now();
+    let n = 0;
+    this.tx(() => {
+      for (const id of ids || []) n += stmt.run(now, id).changes || 0;
+    });
+    return n;
+  }
+
+  remove(id) { return this.removeMany([id]); }
+
+  /** 从回收站恢复 */
+  restoreMany(ids) {
+    const stmt = this.db.prepare('UPDATE assets SET deleted_at = 0 WHERE id = ? AND deleted_at > 0');
+    let n = 0;
+    this.tx(() => {
+      for (const id of ids || []) n += stmt.run(id).changes || 0;
+    });
+    return n;
+  }
+
+  /** 彻底删除：连磁盘文件与缩略图一起删，不可恢复 */
+  async hardRemove(id) {
+    const it = this.getById(id);
+    if (!it) return false;
+    this.q.del.run(id);
+    this.db.prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM asset_tags)').run();
+    try { await fsp.unlink(this.itemFile(it)); } catch { }
+    try { await fsp.unlink(this.thumbPath(it.sha)); } catch { }
+    return true;
+  }
+
+  async purgeMany(ids) {
     let n = 0;
     for (const id of ids || []) {
-      try { if (await this.remove(id)) n++; } catch { }
+      try { if (await this.hardRemove(id)) n++; } catch { }
     }
     return n;
+  }
+
+  async purgeAll() {
+    const rows = this.db.prepare('SELECT id FROM assets WHERE deleted_at > 0').all();
+    return this.purgeMany(rows.map((r) => r.id));
   }
 
   /** 批量改分类（多选后一次写库） */
@@ -458,16 +542,6 @@ class LibraryTools {
     return this.getById(id);
   }
 
-  async remove(id) {
-    const it = this.getById(id);
-    if (!it) return false;
-    this.q.del.run(id);
-    this.db.prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM asset_tags)').run();
-    try { await fsp.unlink(this.itemFile(it)); } catch { }
-    try { await fsp.unlink(this.thumbPath(it.sha)); } catch { }
-    return true;
-  }
-
   async backfillPalettes({ limit = 20, onProgress } = {}) {
     if (!this.imageOps.decode) return 0;
     const rows = this.q.backfill.all(limit);
@@ -529,6 +603,59 @@ class LibraryTools {
       }
     });
     return n;
+  }
+
+  /**
+   * 找相似图：色板 Lab 距离 55% + 宽高比 25% + 同分类 10% + 同标签 15%。
+   * 纯本地统计，不需要 CLIP 模型，几百张库毫秒级返回。
+   */
+  similar(id, limit = 24) {
+    const target = this.getById(id);
+    if (!target) return [];
+    const tPal = this.colors(id);
+    const tRatio = target.w && target.h ? target.h / target.w : 1;
+    const tTags = new Set(target.tags);
+
+    const paletteBy = new Map();
+    for (const c of this.q.allColors.all()) {
+      if (!paletteBy.has(c.asset_id)) paletteBy.set(c.asset_id, []);
+      paletteBy.get(c.asset_id).push(c);
+    }
+
+    const rows = this.db.prepare('SELECT * FROM assets WHERE deleted_at = 0 AND id <> ?').all(id);
+    const tags = this.tagsFor(rows.map((r) => r.id));
+    const out = [];
+    for (const r of rows) {
+      let score = 0;
+      const pal = paletteBy.get(r.id) || [];
+      if (tPal.length && pal.length) {
+        let sum = 0;
+        for (const a of tPal) {
+          let best = 60;
+          for (const b of pal) {
+            const d = deltaE76(a.l, a.a, a.b, b.l, b.a, b.b);
+            if (d < best) best = d;
+          }
+          sum += best;
+        }
+        score += (1 - sum / tPal.length / 60) * 0.55;
+      }
+      const ratio = r.w && r.h ? r.h / r.w : 1;
+      const rd = Math.abs(Math.log((ratio || 1) / (tRatio || 1)));
+      score += Math.max(0, 1 - rd / 0.7) * 0.25;
+      if (r.category === target.category) score += 0.1;
+      const rt = tags.get(r.id) || [];
+      if (tTags.size && rt.length) {
+        const inter = rt.filter((t) => tTags.has(t)).length;
+        score += Math.min(1, inter / Math.min(tTags.size, rt.length)) * 0.15;
+      }
+      if (score > 0.45) out.push({ row: r, score });
+    }
+    out.sort((a, b) => b.score - a.score || b.row.added_at - a.row.added_at);
+    // 自适应截断：只留跟最像那张差不太远的，避免「相似图」把半个库都列出来
+    const best = out.length ? out[0].score : 0;
+    const top = out.filter((h) => h.score >= best * 0.88).slice(0, Math.min(limit, 60));
+    return top.map((h) => ({ ...this.toItem(h.row, tags.get(h.row.id) || []), simScore: +h.score.toFixed(3) }));
   }
 
   searchByColors({ colors = [], threshold = 25, limit = 60, category = null } = {}) {

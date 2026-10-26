@@ -7,7 +7,8 @@ export const NAV: { key: View; label: string; icon: string }[] = [
   { key: 'all', label: '全部素材', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
   { key: 'inbox', label: '待分类', icon: 'M3 4h18v10H3zM3 14l4-4M21 14l-4-4M8 20h8' },
   { key: 'fav', label: '收藏', icon: 'M12 3l3 6 6 1-4.5 4.2 1 6-5.5-3-5.5 3 1-6L3 10l6-1z' },
-  { key: 'recent', label: '最近浏览', icon: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3.5 2' }
+  { key: 'recent', label: '最近浏览', icon: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3.5 2' },
+  { key: 'trash', label: '回收站', icon: 'M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6M14 10v6' }
 ];
 
 const Ico = ({ d, size = 15 }: { d: string; size?: number }) => (
@@ -18,31 +19,42 @@ const Ico = ({ d, size = 15 }: { d: string; size?: number }) => (
 type DragRef = { kind: 'view' | 'cat'; key: string };
 
 export function Rail({
-  view, setView, stats, tree, counts, category, setCategory, railViews, railCats,
-  onReorder, dropCat, setDropCat, onDropOnCategory, onOpenRoot,
-  onAddCat, onRenameCat, onDropCat
+  view, setView, stats, tree, counts, category, setCategory, sub, setSub,
+  railViews, railCats, onReorder, dropCat, setDropCat, onDropOnCategory, onDropOnSub,
+  onOpenRoot, onAddCat, onRenameCat, onDropCat
 }: {
   view: View; setView: (v: View) => void; stats: Stats; tree: Tree;
   counts: Record<string, number>; category: string | null; setCategory: (c: string | null) => void;
+  sub: string | null; setSub: (s: string | null) => void;
   railViews: View[]; railCats: string[];
   onReorder: (kind: 'view' | 'cat', from: string, to: string) => void;
   dropCat: string | null; setDropCat: (c: string | null) => void;
   onDropOnCategory: (c: string) => void;
+  onDropOnSub: (c: string, s: string) => void;
   onOpenRoot: () => void;
   onAddCat: (name: string) => void;
   onRenameCat: (from: string, to: string) => void;
   onDropCat: (name: string) => void;
 }) {
-  const [drag, setDrag] = useState<DragRef | null>(null);
   const dragRef = useRef<DragRef | null>(null);
+  const [drag, setDrag] = useState<DragRef | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState<Set<string>>(new Set());
 
-  const views = railViews.length ? railViews : NAV.map(n => n.key);
+  const views = (railViews.length ? railViews : NAV.map(n => n.key)).filter(k => k !== 'trash');
   const cats = railCats.length ? railCats : tree.map(([c]) => c);
+
+  const toggleOpen = (c: string) => {
+    setOpen(prev => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  };
 
   const railDragProps = (kind: 'view' | 'cat', key: string) => ({
     draggable: true,
@@ -110,8 +122,8 @@ export function Rail({
         return (
           <div
             key={k}
-            className={'navitem' + (view === k ? ' on' : '') + (over === k ? ' over' : '') + (drag?.key === k ? ' dragging' : '')}
-            onClick={() => setView(k)}
+            className={'navitem' + (view === k && !category ? ' on' : '') + (over === k ? ' over' : '') + (drag?.key === k ? ' dragging' : '')}
+            onClick={() => { setView(k); setSub(null); }}
             title={meta.label}
             {...railDragProps('view', k)}
           >
@@ -122,6 +134,16 @@ export function Rail({
           </div>
         );
       })}
+
+      <div
+        className={'navitem trashitem' + (view === 'trash' ? ' on' : '')}
+        onClick={() => { setView('trash'); setCategory(null); setSub(null); }}
+        title="回收站：删掉的图还在这里，可以恢复"
+      >
+        <i className="ico"><Ico d={NAV[4].icon} /></i>
+        <span>回收站</span>
+        <i className="cnt">{stats.trash || ''}</i>
+      </div>
 
       <div className="raildiv" />
       <div className="raillbl">
@@ -146,41 +168,82 @@ export function Rail({
       )}
 
       <div className="cats">
-        {cats.map(c => (
-          <div
-            key={c}
-            className={'cat' + (category === c ? ' on' : '') + (over === c ? ' over' : '')
-              + (dropCat === c ? ' drop' : '') + (drag?.key === c ? ' dragging' : '')}
-            onClick={() => { if (editing !== c) setCategory(category === c ? null : c); }}
-            title={c}
-            {...railDragProps('cat', c)}
-          >
-            {editing === c ? (
-              <input
-                className="catrename"
-                autoFocus
-                value={draft}
-                onClick={e => e.stopPropagation()}
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => {
-                  e.stopPropagation();
-                  if (e.key === 'Enter') { onRenameCat(c, draft.trim() || c); setEditing(null); }
-                  if (e.key === 'Escape') setEditing(null);
-                }}
-                onBlur={() => setEditing(null)}
-              />
-            ) : (
-              <>
-                <span className="nm">{c}</span>
-                <i className="cnt">{counts[c] || ''}</i>
-                <span className="cattools">
-                  <button title="改名" onClick={e => { e.stopPropagation(); setEditing(c); setDraft(c); }}>✎</button>
-                  <button title="删除分类（图不会删，退回待分类）" onClick={e => { e.stopPropagation(); onDropCat(c); }}>×</button>
-                </span>
-              </>
-            )}
-          </div>
-        ))}
+        {cats.map(c => {
+          const subs = tree.find(([n]) => n === c)?.[1] || [];
+          const isOpen = open.has(c);
+          const active = category === c && !sub;
+          return (
+            <div className="catblock" key={c}>
+              <div
+                className={'cat' + (active ? ' on' : '') + (over === c ? ' over' : '')
+                  + (dropCat === c ? ' drop' : '') + (drag?.key === c ? ' dragging' : '')}
+                onClick={() => { if (editing !== c) { setCategory(category === c && !sub ? null : c); setSub(null); } }}
+                title={c}
+                {...railDragProps('cat', c)}
+              >
+                {editing === c ? (
+                  <input
+                    className="catrename"
+                    autoFocus
+                    value={draft}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={e => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter') { onRenameCat(c, draft.trim() || c); setEditing(null); }
+                      if (e.key === 'Escape') setEditing(null);
+                    }}
+                    onBlur={() => setEditing(null)}
+                  />
+                ) : (
+                  <>
+                    <button
+                      className={'caret' + (isOpen ? ' open' : '') + (subs.length ? '' : ' none')}
+                      onClick={e => { e.stopPropagation(); if (subs.length) toggleOpen(c); }}
+                      title={subs.length ? (isOpen ? '收起子类' : `展开 ${subs.length} 个子类`) : '没有子类'}
+                    >▸</button>
+                    <span className="nm">{c}</span>
+                    <i className="cnt">{counts[c] || ''}</i>
+                    <span className="cattools">
+                      <button title="改名" onClick={e => { e.stopPropagation(); setEditing(c); setDraft(c); }}>✎</button>
+                      <button title="删除分类（图不会删，退回待分类）" onClick={e => { e.stopPropagation(); onDropCat(c); }}>×</button>
+                    </span>
+                  </>
+                )}
+              </div>
+              {isOpen && subs.length > 0 && (
+                <div className="subs">
+                  {subs.map(s => (
+                    <div
+                      key={s}
+                      className={'catsub' + (category === c && sub === s ? ' on' : '') + (dropCat === c + '/' + s ? ' drop' : '')}
+                      title={`只看「${c} / ${s}」`}
+                      onClick={() => { setCategory(c); setSub(s); }}
+                      onDragOver={e => {
+                        if (Array.from(e.dataTransfer.types).includes('text/plain')) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDropCat(c + '/' + s);
+                        }
+                      }}
+                      onDragLeave={() => setDropCat(null)}
+                      onDrop={e => {
+                        if (Array.from(e.dataTransfer.types).includes('text/plain')) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDropCat(null);
+                          onDropOnSub(c, s);
+                        }
+                      }}
+                    >
+                      <span>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="railfoot">

@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS assets (
   favorite INTEGER NOT NULL DEFAULT 0,
   has_thumb INTEGER NOT NULL DEFAULT 0,
   palette_at INTEGER NOT NULL DEFAULT 0,
+  deleted_at INTEGER NOT NULL DEFAULT 0,
   py TEXT NOT NULL DEFAULT '',
   py_init TEXT NOT NULL DEFAULT '',
   cat_py TEXT NOT NULL DEFAULT '',
@@ -78,6 +79,11 @@ function openDatabase(root) {
   if (!cols.includes('fname')) {
     db.exec("ALTER TABLE assets ADD COLUMN fname TEXT NOT NULL DEFAULT ''");
   }
+  // v2 -> v3：软删除。deleted_at > 0 即在回收站，文件仍在盘上，可恢复
+  if (!cols.includes('deleted_at')) {
+    db.exec("ALTER TABLE assets ADD COLUMN deleted_at INTEGER NOT NULL DEFAULT 0");
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_assets_live ON assets(deleted_at)');
 
   const { user_version: ver } = db.prepare('PRAGMA user_version').get();
   if (ver < SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

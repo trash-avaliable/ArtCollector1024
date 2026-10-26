@@ -1,6 +1,6 @@
 {
   "name": "refcollector",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "RefCollector - 画师参考图收集器",
   "main": "electron/main.js",
   "author": "RefCollector",
@@ -34,6 +34,7 @@
       "electron/**/*",
       "dist/**/*",
       "assets/**/*",
+      "pin.html",
       "package.json"
     ],
     "win": {
@@ -50,6 +51,12 @@
       "createStartMenuShortcut": true,
       "shortcutName": "RefCollector",
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension"
+      }
+    ]
   }
 }

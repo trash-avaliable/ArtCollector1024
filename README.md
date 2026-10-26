@@ -2,7 +2,7 @@
 
 Windows 桌面应用。把网页上看到的、剪贴板里复制的、硬盘里已有的参考图，统一收进一个本地库，自动分类、模糊搜索、随手拖进画布。
 
-**当前版本：0.3.0（功能补全 + 布局重做）**
+**当前版本：0.4.0（P1 全部 + 浏览器扩展）**
 
 ---
 
@@ -57,7 +57,7 @@ npm run dist
 
 | 文件 | 说明 |
 |---|---|
-| `RefCollector Setup 0.3.0.exe` | 安装包（约 111 MB，NSIS，可改安装目录） |
+| `RefCollector Setup 0.4.0.exe` | 安装包（约 116 MB，NSIS，可改安装目录） |
 | `win-unpacked/` | 免安装绿色版，双击里面 `RefCollector.exe` 直接跑 |
 
 安装包行为：默认装到当前用户目录、**自动创建桌面快捷方式与开始菜单项**、不写注册表服务、卸载时保留用户图库。
@@ -141,6 +141,24 @@ npm run dist
 - 检查器：文件名（可点改）、**来源**（本地导入 / 剪贴板 + 原始链接可点）、尺寸 / 体积 / 格式 / 日期、分类下拉改判、**标签**（回车加、点 × 删）、**色板**（按占比铺成色带，点哪块按哪块搜图）、收藏 / 复制 / 定位 / 移出，操作按钮固定在底栏不会随窗口变矮消失
 - 颜色筛选：点色板任意一块 → 全库按接近色搜索，顶部出现可清除的色块 chip
 
+**P1：把「删错救不回、分类太粗、找相似太累」这三件事解决掉**
+
+- **回收站**：删除改软删除（`assets.deleted_at`），左栏多一个「回收站」视图；在回收站里批量条变成「恢复 / 彻底删除」，只有彻底删除才真删磁盘文件
+- **子分类**：左栏分类前的 `▸` 展开二级子类，点进去只看该子类；导入到指定分类、批量改分类都能落到子类（`导入 ▾` 菜单里是「主类 / 子类」两段）
+- **橡皮筋框选**：在瀑布流空白处按下拖动，框住即选中；`Ctrl` 拖是加选，空白处单击 = 取消选择（和资源管理器一致）
+- **相似图**：按 dHash 感知哈希 + 主色距离打分，检查器「相似图」→ 只留相近的，顶部 chip 显示「相似于「xxx」」，点 × 退出
+- **大图 `Alt` 点击取色**：直接取到 HEX，写进剪贴板并弹 HUD；`←` `→` 切上一张 / 下一张
+- **大图拖拽平移**：放大后可按住拖动，`0` 一键复位
+- **置顶参考窗**：检查器「置顶」把当前图丢进无边框小窗，压在所有窗口最上层；可调透明度、可切鼠标穿透，画的时候不用来回切窗口
+
+**P2：浏览器扩展（`extension/`）**
+
+- Chrome / Edge MV3，右键图片 →「存进 RefCollector」，落点是原图 URL，自动带 `pageUrl` 当来源
+- 右键页面空白处 →「收集本页图片（最多 30 张）」，一次把整页参考图扫进来
+- 图标角标反馈：`+1` 存下 / `DUP` 已存在 / `ERR` 失败 / `OFF` 应用没开
+- 走 `127.0.0.1:47821` 的本地端口，只监听回环地址；`token` 在「库设置」里可见可复制，防止本机其他网页乱投
+- 装法：设置弹窗里点「打开扩展目录」，然后 `chrome://extensions` → 开「开发者模式」→「加载已解压的扩展程序」→ 选该目录；把弹窗里的令牌粘到扩展设置页
+
 **视觉（第 6 节契约）**
 
 - 窗口底纯素色 `#eef0ea`，无环境光、无全屏渐变
@@ -153,20 +171,45 @@ npm run dist
 
 ---
 
-## 四、还没做（P1 / P2）
+## 四、还没做
 
-- **浏览器扩展**（Chrome MV3 右键菜单 + 悬浮钮）—— 目录预留 `extension/`，未实现
-- **CLIP 视觉分类**（ONNX ViT-B/32）—— 目前只有规则层，置信度与待分类阈值未接
-- **置顶参考窗**（无边框、可调透明度、可鼠标穿透）
-- **相似图 / 语义搜索**
-- **框选**（现在只有 Ctrl 点选 / Shift 连选 / Ctrl+A 全选，没有橡皮筋框选）
-- **回收站**（现在是直接删文件，删前有确认弹窗）
-- 大图预览的拖拽平移、`alt` 取色
-- 子分类还没做界面（数据层 `subcategory` 已就位，导入到分类时留空）
+- **CLIP 视觉分类**（ONNX ViT-B/32）—— 要额外带 ~90MB 模型 + 分词器，没接；现在分类靠规则层，相似图靠 dHash 感知哈希（对「构图/明暗相近」有效，对「语义相近」无效）
+- **多标签工作集 / 画板分组**（数据层有 `tags`，界面只有单图打标签，没有跨图工作集）
+- **云同步 / 多设备**（现在是纯本地单库）
+- **WebP 动图、APNG 播放**（只存不播）
+- 托盘图标在深色任务栏上对比度一般
 
 ---
 
-## 五、库目录结构
+## 五、浏览器扩展（P2）
+
+扩展目录：`refcollector/extension/`（跟安装包一起装到 `resources/../extension`，设置里能一键打开）
+
+| 操作 | 结果 |
+|---|---|
+| 右键图片 →「存进 RefCollector」 | 存原图，`sourceUrl` 记成所在页面 |
+| 右键页面空白 →「收集本页图片（最多 30 张）」 | 扫 `img` 与 `srcset`，去重后逐张存 |
+| 点扩展图标 | 打开设置页（填端口 + 令牌） |
+
+角标：`+1` 成功 / `DUP` 库里已有 / `ERR` 下载失败 / `OFF` RefCollector 没启动。
+
+**接口**（自己写脚本也能用）
+
+```bash
+curl http://127.0.0.1:47821/ping
+# {"ok":true,"app":"RefCollector","port":47821,"count":156}
+
+curl -X POST http://127.0.0.1:47821/collect \
+  -H "content-type: application/json" \
+  -d '{"url":"https://example.com/a.jpg","pageUrl":"https://example.com/post/1","name":"参考图","token":"<设置里的令牌>"}'
+# {"ok":true,"dup":false,"ext":".jpg","size":184320}
+```
+
+令牌不匹配返回 `401 {"error":"token 不匹配"}`；同一张图重复投返回 `{"ok":false,"dup":true}`，不会写第二份。
+
+---
+
+## 六、库目录结构
 
 默认 `C:\Users\<你>\Pictures\RefCollector`，可在设置里改（托盘 → 打开库目录，或调用 `lib:choose-root`）。
 
@@ -184,7 +227,7 @@ RefCollector/
 
 ---
 
-## 六、快捷键
+## 七、快捷键
 
 | 键 | 作用 |
 |---|---|
@@ -202,7 +245,7 @@ RefCollector/
 
 ---
 
-## 七、代码结构
+## 八、代码结构
 
 ```
 refcollector/
@@ -212,16 +255,21 @@ refcollector/
     db.js         SQLite 连接、schema、WAL
     tools.js      工具层：搜索、导入、分类、标签、颜色检索（IPC / MCP / AI 共用）
     palette.js    Lab 转换、k-means 主色提取、ΔE 距离
+    bridge.js     127.0.0.1:47821 本地接收端口，给浏览器扩展投图
     store.js      Electron 侧薄封装（库配置 + 图像解码注入）
   src/
     App.tsx       状态与布局
     types.ts      类型、URL 拼装、格式化
     styles.css    全部视觉令牌与动效（无 UI 框架）
     components/
-      Chrome.tsx    TitleBar / Rail / StatusBar / 缩放热区
-      Stage.tsx     Toolbar / Card / EmptyState
+      Chrome.tsx    TitleBar / StatusBar / 缩放热区
+      Rail.tsx      左栏：视图 + 分类树（拖动排序 / 增删改名 / 子类展开）
+      Stage.tsx     Toolbar / Masonry / Card / BatchBar / 框选
+      Select.tsx    自绘下拉
       Dock.tsx      右侧深色档案栏
       Overlays.tsx  Lightbox / Toast / 剪贴板卡片 / 拖入遮罩
+  pin.html        置顶参考窗（无边框、透明、可穿透）
+  extension/      Chrome / Edge MV3 扩展：manifest + background + options + 图标
   assets/         图标（脚本生成的 PNG，无外部素材）
   scripts/
     smoke-tools.js  工具层冒烟测试（node scripts/smoke-tools.js）
@@ -231,11 +279,13 @@ refcollector/
 
 ---
 
-## 八、已知限制
+## 九、已知限制
 
 - 分类只有规则层，文件名不含关键词的图会进「待分类」，需要手动拖一次
-- 颜色检索目前是 Lab ΔE76 + 内存打分，还没有向量索引；语义搜索（CLIP）未接
+- 颜色检索是 Lab ΔE76 + 内存打分，没有向量索引；相似图是 dHash 64 位 + 主色距离，不是 CLIP 语义相似
 - AI 侧栏与 MCP 入口尚未接入，`tools.js` 的工具层已经就位
+- 扩展端口固定 47821；如果被别的程序占用，桥接会启动失败（主进程日志有提示），扩展侧表现为 `OFF`
+- 扩展的「收集本页」只扫 `<img>` 与 `srcset`，扫不到 CSS `background-image` 和 canvas 内容
 - 首次导入 1000 张时缩略图在主进程串行生成，进度条会走但界面仍可操作；后续应挪到 `worker_threads`
 - 拖出依赖 `webContents.startDrag`，只在 Windows / macOS 生效
 - 托盘图标与窗口图标是代码生成的方块标记，不是设计稿图标

@@ -16,6 +16,8 @@ export type Item = {
   ext: string;
   hasThumb: boolean;
   fname?: string;
+  deletedAt?: number;
+  simScore?: number;
 };
 
 export type Stats = {
@@ -24,10 +26,12 @@ export type Stats = {
   fav: number;
   week: number;
   size: number;
+  trash?: number;
+  trashSize?: number;
   root: string;
 };
 
-export type View = 'all' | 'inbox' | 'fav' | 'recent';
+export type View = 'all' | 'inbox' | 'fav' | 'recent' | 'trash';
 
 export type Tree = [string, string[]][];
 
@@ -45,6 +49,8 @@ export type ColorHit = { hex: string; dist: number; pct: number };
 
 export const DEFAULT_VIEWS: View[] = ['all', 'inbox', 'fav', 'recent'];
 
+export const EMPTY_STATS: Stats = { total: 0, inbox: 0, fav: 0, week: 0, size: 0, trash: 0, trashSize: 0, root: '' };
+
 declare global {
   interface Window {
     api: {
@@ -57,18 +63,22 @@ declare global {
         onState(cb: (s: { maximized: boolean }) => void): () => void;
       };
       lib: {
-        info(): Promise<{ root: string; stats: Stats; tree: Tree }>;
-        list(opts: any): Promise<Item[]>;
+        info(): Promise<{ root: string; stats: Stats; tree: Tree }>;        list(opts: any): Promise<Item[]>;
         stats(): Promise<Stats>;
         counts(): Promise<Record<string, number>>;
-        importDialog(opts?: { category?: string }): Promise<{ added: number; dup: number; failed: number; total: number } | null>;
-        importPaths(payload: string[] | { paths: string[]; category?: string }): Promise<any>;
+        importDialog(opts?: { category?: string; subcategory?: string }): Promise<{ added: number; dup: number; failed: number; total: number } | null>;
+        importPaths(payload: string[] | { paths: string[]; category?: string; subcategory?: string }): Promise<any>;
         importFile(payload: { file: string; category?: string; subcategory?: string }): Promise<any>;
         cats(): Promise<Tree>;
         saveCats(list: Tree): Promise<Tree>;
         renameCat(p: { from: string; to: string }): Promise<number>;
         dropCat(name: string): Promise<number>;
         removeMany(ids: string[]): Promise<{ n: number; stats: Stats }>;
+        restoreMany(ids: string[]): Promise<{ n: number; stats: Stats }>;
+        purgeMany(ids: string[]): Promise<{ n: number; stats: Stats }>;
+        purgeAll(): Promise<{ n: number; stats: Stats }>;
+        similar(p: { id: string; limit?: number }): Promise<(Item & { simScore: number })[]>;
+        pickColor(p: { id: string; x: number; y: number }): Promise<{ hex: string; x: number; y: number } | null>;
         setCategoryMany(p: { ids: string[]; category: string; subcategory?: string }): Promise<number>;
         toggleFavMany(p: { ids: string[]; value: boolean }): Promise<number>;
         setTags(p: { id: string; tags: string[] }): Promise<{ id: string; tags: string[] } | null>;
@@ -87,6 +97,16 @@ declare global {
         searchColors(opts: { colors: (string | { hex: string; weight?: number })[]; threshold?: number; limit?: number; category?: string | null }): Promise<(Item & { colorScore: number; matched: { hex: string; dist: number; pct: number }[] })[]>;
         dragOut(id: string): void;
         pathForFile(file: File): string;
+      };
+      pin: {
+        open(id: string): Promise<boolean>;
+        close(): Promise<void>;
+        setOpacity(v: number): void;
+        setIgnore(v: boolean): void;
+      };
+      bridge: {
+        info(): Promise<{ port: number; token: string; extDir: string }>;
+        openExt(): Promise<void>;
       };
       on: {
         importProgress(cb: (p: { done: number; total: number; added: number }) => void): () => void;

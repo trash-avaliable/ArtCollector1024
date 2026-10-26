@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "RefCollector · 一键收图",
+  "version": "1.0.0",
+  "description": "右键网页上的图片，直接存进本地 RefCollector 参考库，自动分类与去重。",
+  "permissions": ["contextMenus", "storage", "scripting", "activeTab"],
+  "host_permissions": ["http://127.0.0.1/*", "<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
+  "action": { "default_title": "RefCollector · 一键收图" },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

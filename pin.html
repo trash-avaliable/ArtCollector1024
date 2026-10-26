@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>RefCollector · 置顶参考</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #stage { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
+  #im {
+    max-width: 100%; max-height: 100%; display: block; user-select: none;
+    -webkit-user-drag: none; transform-origin: center;
+    transition: transform 90ms cubic-bezier(.22, .8, .2, 1);
+  }
+  #bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 22px; z-index: 2;
+    display: flex; align-items: center; gap: 6px; padding: 0 6px;
+    background: rgba(20, 22, 15, .9); color: #fff;
+    font: 10.5px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    -webkit-app-region: drag; opacity: 0; transition: opacity 180ms cubic-bezier(.22, .8, .2, 1);
+  }
+  body:hover #bar { opacity: 1; }
+  #bar b { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .02em; }
+  #bar span { color: rgba(255, 255, 255, .5); }
+  #bar button {
+    -webkit-app-region: no-drag; background: transparent; color: #fff;
+    border: 1px solid rgba(255, 255, 255, .28); padding: 2px 5px; cursor: pointer;
+    font: 10px/1 inherit; transition: border-color 120ms, color 120ms;
+  }
+  #bar button:hover { border-color: #fffa00; color: #fffa00; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="bar">
+      <b id="nm"></b>
+      <span id="pct">100%</span>
+      <button id="close" title="关闭">×</button>
+    </div>
+    <img id="im" alt="">
+  </div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const sha = q.get('sha') || '';
+  const name = q.get('name') || '';
+  const im = document.getElementById('im');
+  const pct = document.getElementById('pct');
+  document.getElementById('nm').textContent = name;
+  if (sha) im.src = 'refimg://orig/' + encodeURIComponent(sha);
+
+  let z = 1;
+  const apply = () => {
+    im.style.transform = 'scale(' + z + ')';
+    pct.textContent = Math.round(z * 100) + '%';
+  };
+  addEventListener('wheel', e => {
+    e.preventDefault();
+    z = Math.min(6, Math.max(0.15, z - e.deltaY * 0.0016));
+    apply();
+  }, { passive: false });
+  addEventListener('dblclick', () => { z = 1; apply(); });
+  document.getElementById('close').onclick = () => window.api && window.api.pinWin.close();
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
-import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { thumbUrl, type Item, type Sort } from '../types';
 import { Select } from './Select';
 
@@ -12,11 +13,12 @@ const SORTS = [
 export const Toolbar = forwardRef<HTMLInputElement, {
   query: string; setQuery: (v: string) => void;
   sort: Sort; setSort: (s: Sort) => void;
-  category: string | null; cats: string[]; setCategory: (c: string | null) => void;
+  category: string | null; sub: string | null; cats: string[]; setCategory: (c: string | null) => void;
   colorFilter: string | null; onClearColor: () => void;
+  simLabel?: string | null; onClearSim?: () => void;
   onImport: () => void; onImportTo: (cat: string) => void;
 }>(function Toolbar(p, ref) {
-  const { query, setQuery, sort, setSort, category, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo } = p;
+  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, simLabel, onClearSim } = p;
   const [menu, setMenu] = useState(false);
   const mref = useRef<HTMLDivElement>(null);
 
@@ -46,9 +48,14 @@ export const Toolbar = forwardRef<HTMLInputElement, {
       </label>
 
       <div className="filterrow">
+        {simLabel && (
+          <button className="fchip sim" onClick={onClearSim} title="退出相似图">
+            相似于：{simLabel} <i>×</i>
+          </button>
+        )}
         {category && (
           <button className="fchip" onClick={() => setCategory(null)} title="清除分类筛选">
-            分类：{category} <i>×</i>
+            分类：{category}{sub ? ` / ${sub}` : ''} <i>×</i>
           </button>
         )}
         {colorFilter && (
@@ -94,8 +101,10 @@ export const Toolbar = forwardRef<HTMLInputElement, {
 
 function useWidth(ref: React.RefObject<HTMLDivElement>) {
   const [w, setW] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
+  // 观察父级 .gridwrap 而不是自己：masonry 带 key，换筛选时会重建，
+  // 观察自己会在卸载瞬间收到 0 宽回调，列数被压成 1 列。
+  useLayoutEffect(() => {
+    const el = ref.current?.parentElement || ref.current;
     if (!el) return;
     setW(el.clientWidth);
     const ro = new ResizeObserver(es => setW(Math.round(es[0].contentRect.width)));
@@ -105,12 +114,15 @@ function useWidth(ref: React.RefObject<HTMLDivElement>) {
   return w;
 }
 
+type Box = { x0: number; y0: number; x1: number; y1: number };
+
 export function Masonry({
-  items, fadeKey, selectedIds, draggingId, onSelect, onOpen, onDragOut, onDragStart, onDragEnd
+  items, fadeKey, selectedIds, draggingId, onSelect, onOpen, onDragOut, onDragStart, onDragEnd, onBoxSelect
 }: {
   items: Item[]; fadeKey: string; selectedIds: Set<string>; draggingId: string | null;
   onSelect: (id: string, e: React.MouseEvent) => void; onOpen: (id: string) => void;
   onDragOut: (id: string) => void; onDragStart: (id: string) => void; onDragEnd: () => void;
+  onBoxSelect: (ids: string[], additive: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
@@ -136,28 +148,96 @@ export function Masonry({
     return m;
   }, [items]);
 
+  /* ---- 橡皮筋框选 ---- */
+  const [box, setBox] = useState<Box | null>(null);
+  const boxRef = useRef<Box | null>(null);
+  const startRef = useRef<{ x: number; y: number; add: boolean; moved: boolean } | null>(null);
+
+  const pushBox = (b: Box | null) => { boxRef.current = b; setBox(b); };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('.card') || t.closest('button')) return;
+    startRef.current = { x: e.clientX, y: e.clientY, add: e.ctrlKey || e.metaKey || e.shiftKey, moved: false };
+    pushBox({ x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY });
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { }
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const s = startRef.current;
+    if (!s) return;
+    if (!s.moved && Math.hypot(e.clientX - s.x, e.clientY - s.y) < 4) return;
+    s.moved = true;
+    pushBox({ x0: s.x, y0: s.y, x1: e.clientX, y1: e.clientY });
+  };
+
+  const onPointerUp = () => {
+    const s = startRef.current;
+    // 用 ref 而不是 state：快速甩动时 pointerup 可能早于 React 提交，读 state 会拿到起点
+    const b = boxRef.current;
+    startRef.current = null;
+    pushBox(null);
+    if (!s) return;
+    if (!s.moved) { onBoxSelect([], s.add); return; }  // 空白处点一下 = 取消选择
+    if (!b || !ref.current) return;
+    const lx = Math.min(b.x0, b.x1), rx = Math.max(b.x0, b.x1);
+    const ty = Math.min(b.y0, b.y1), by = Math.max(b.y0, b.y1);
+    const hit: string[] = [];
+    ref.current.querySelectorAll<HTMLElement>('[data-id]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.left < rx && r.right > lx && r.top < by && r.bottom > ty) {
+        const id = el.dataset.id;
+        if (id) hit.push(id);
+      }
+    });
+    onBoxSelect(hit, s.add);
+  };
+
+  const rect = box ? {
+    left: Math.min(box.x0, box.x1),
+    top: Math.min(box.y0, box.y1),
+    width: Math.abs(box.x1 - box.x0),
+    height: Math.abs(box.y1 - box.y0)
+  } : null;
+
   return (
-    <div className="masonry" ref={ref} key={fadeKey} data-cols={colCount}>
-      {columns.map((col, ci) => (
-        <div className="mcol" key={ci}>
-          {col.map((it, ri) => (
-            <Card
-              key={it.id}
-              it={it}
-              idx={indexOf.get(it.id) ?? 0}
-              delay={Math.min(ri * 30 + ci * 15, 200)}
-              selected={selectedIds.has(it.id)}
-              dragging={draggingId === it.id}
-              onSelect={onSelect}
-              onOpen={onOpen}
-              onDragOut={onDragOut}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
+    <>
+      <div
+        className="masonry"
+        ref={ref}
+        key={fadeKey}
+        data-cols={colCount}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        {columns.map((col, ci) => (
+          <div className="mcol" key={ci}>
+            {col.map((it, ri) => (
+              <Card
+                key={it.id}
+                it={it}
+                idx={indexOf.get(it.id) ?? 0}
+                delay={Math.min(ri * 30 + ci * 15, 200)}
+                selected={selectedIds.has(it.id)}
+                dragging={draggingId === it.id}
+                onSelect={onSelect}
+                onOpen={onOpen}
+                onDragOut={onDragOut}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      {rect && rect.width > 2 && createPortal(
+        <div className="rubber" style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }} />,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -170,7 +250,8 @@ export const Card = React.memo(function Card({
 }) {
   return (
     <article
-      className={'card' + (selected ? ' sel' : '') + (dragging ? ' dragging' : '')}
+      className={'card' + (selected ? ' sel' : '') + (dragging ? ' dragging' : '') + (it.deletedAt ? ' gone' : '')}
+      data-id={it.id}
       style={{ animationDelay: delay + 'ms' }}
       draggable
       onDragStart={e => {
@@ -202,6 +283,7 @@ export const Card = React.memo(function Card({
         </div>
         <div className="r2">
           <span className="tag">{it.subcategory || it.category}</span>
+          {typeof it.simScore === 'number' && <span className="sim">≈{Math.round(it.simScore * 100)}%</span>}
           <i className="idx">#{String(idx + 1).padStart(3, '0')}</i>
         </div>
       </div>
@@ -210,27 +292,38 @@ export const Card = React.memo(function Card({
 });
 
 export function BatchBar({
-  count, cats, onCategory, onFav, onDragOut, onDelete, onClear
+  count, cats, mode, onCategory, onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll
 }: {
-  count: number; cats: string[];
+  count: number; cats: string[]; mode: 'normal' | 'trash';
   onCategory: (c: string) => void; onFav: () => void; onDragOut: () => void;
   onDelete: () => void; onClear: () => void;
+  onRestore: () => void; onPurge: () => void; onPurgeAll: () => void;
 }) {
   if (!count) return null;
   return (
-    <div className="batchbar">
+    <div className="batchbar" data-mode={mode}>
       <div className="bcount"><b>{count}</b> 张已选</div>
       <div className="bsep" />
-      <Select
-        value={null}
-        placeholder="改分类到…"
-        options={cats.map(c => ({ value: c, label: c }))}
-        onChange={onCategory}
-        size="sm"
-      />
-      <button onClick={onFav}>收藏</button>
-      <button onClick={onDragOut}>拖出</button>
-      <button className="danger" onClick={onDelete}>删除</button>
+      {mode === 'trash' ? (
+        <>
+          <button className="primary" onClick={onRestore}>恢复</button>
+          <button className="danger" onClick={onPurge}>彻底删除</button>
+          <button onClick={onPurgeAll}>清空回收站</button>
+        </>
+      ) : (
+        <>
+          <Select
+            value={null}
+            placeholder="改分类到…"
+            options={cats.map(c => ({ value: c, label: c }))}
+            onChange={onCategory}
+            size="sm"
+          />
+          <button onClick={onFav}>收藏</button>
+          <button onClick={onDragOut}>拖出</button>
+          <button className="danger" onClick={onDelete}>删除</button>
+        </>
+      )}
       <button className="bclose" onClick={onClear}>取消选择</button>
     </div>
   );
