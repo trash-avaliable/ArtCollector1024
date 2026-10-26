@@ -237,6 +237,7 @@ class Store {
   resolveThumb(sha) { return this.tools.resolveThumb(sha); }
 
   backfillPalettes(opts) { return this.tools.backfillPalettes(opts); }
+  backfillAnimated(opts) { return this.tools.backfillAnimated(opts); }
   trimItems(ids, onProgress) { return this.tools.trimItems(ids, onProgress); }
 
   /* ---- 画板（工作集）---- */

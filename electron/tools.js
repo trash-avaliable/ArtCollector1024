@@ -8,6 +8,123 @@ const { paletteFromBGRA, hexToLab, deltaE76 } = require('./palette');
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.avif']);
 
+/** 动图相关扩展：这些格式需要解析字节判断是否真的会动 */
+const ANIM_EXT = new Set(['.gif', '.webp', '.png']);
+
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** 遍历 GIF 块结构数图像描述符（0x2C）：> 1 即多帧动画 */
+function gifFrameCount(buf) {
+  if (buf.length < 14) return 0;
+  const head = buf.toString('latin1', 0, 6);
+  if (head !== 'GIF87a' && head !== 'GIF89a') return 0;
+  let p = 13;
+  if (buf[10] & 0x80) p += 3 * (2 << (buf[10] & 0x07));  // 全局色表
+  let frames = 0;
+  while (p < buf.length) {
+    const b = buf[p++];
+    if (b === 0x3b) break;                                 // trailer
+    if (b === 0x21) {                                      // 扩展块：跳过子块链
+      if (p >= buf.length) break;
+      p++;
+      while (p < buf.length) { const len = buf[p++]; if (!len) break; p += len; }
+    } else if (b === 0x2c) {                               // 图像描述符 = 一帧
+      frames++;
+      if (p + 9 > buf.length) break;
+      const packed = buf[p + 8];
+      p += 9;
+      if (packed & 0x80) p += 3 * (2 << (packed & 0x07));  // 局部色表
+      if (p >= buf.length) break;
+      p++;                                                 // LZW 最小编码长度
+      while (p < buf.length) { const len = buf[p++]; if (!len) break; p += len; }
+    } else break;                                          // 未知块，放弃
+  }
+  return frames;
+}
+
+/** 动态 WebP 在 RIFF 块里有 ANIM 块 */
+function webpHasAnim(buf) {
+  if (buf.length < 20) return false;
+  if (buf.toString('latin1', 0, 4) !== 'RIFF' || buf.toString('latin1', 8, 12) !== 'WEBP') return false;
+  let p = 12;
+  while (p + 8 <= buf.length) {
+    const tag = buf.toString('latin1', p, p + 4);
+    const size = buf.readUInt32LE(p + 4);
+    if (tag === 'ANIM') return true;
+    if (tag === 'VP8 ' || tag === 'VP8L') return false;    // 单图编码，无动画
+    p += 8 + size + (size & 1);
+  }
+  return false;
+}
+
+/** APNG 在第一个 IDAT 之前有 acTL 块 */
+function pngHasAnim(buf) {
+  if (buf.length < 8 || !buf.subarray(0, 8).equals(PNG_SIG)) return false;
+  let p = 8;
+  while (p + 8 <= buf.length) {
+    const len = buf.readUInt32BE(p);
+    const type = buf.toString('latin1', p + 4, p + 8);
+    if (type === 'acTL') return true;
+    if (type === 'IDAT' || type === 'IEND') return false;
+    p += 12 + len;
+  }
+  return false;
+}
+
+/**
+ * 纯字节解析判断动图：GIF 数帧、WebP 找 ANIM、PNG 找 acTL。
+ * 不走 nativeImage 解码（它只解第一帧），几百 KB 到几十 MB 的文件都是微秒级。
+ */
+function detectAnimated(buf, ext) {
+  try {
+    if (ext === '.gif') return gifFrameCount(buf) > 1;
+    if (ext === '.webp') return webpHasAnim(buf);
+    if (ext === '.png') return pngHasAnim(buf);
+  } catch { }
+  return false;
+}
+
+/**
+ * nativeImage 解不了 GIF / WebP（decode 返回空），这里从文件头直接抠画布尺寸，
+ * 让这类素材也有正确的 w/h（卡片瀑布流、检查器 SIZE、灯箱布局都靠它）。
+ */
+function gifDimensions(buf) {
+  if (buf.length < 10) return null;
+  const head = buf.toString('latin1', 0, 6);
+  if (head !== 'GIF87a' && head !== 'GIF89a') return null;
+  const w = buf.readUInt16LE(6), h = buf.readUInt16LE(8);
+  return w > 0 && h > 0 ? { w, h } : null;
+}
+
+function webpDimensions(buf) {
+  if (buf.length < 21) return null;
+  if (buf.toString('latin1', 0, 4) !== 'RIFF' || buf.toString('latin1', 8, 12) !== 'WEBP') return null;
+  let out = null;
+  const tag = buf.toString('latin1', 12, 16);
+  if (tag === 'VP8X' && buf.length >= 30) {
+    // 24 位画布尺寸-1
+    out = { w: 1 + buf.readUIntLE(24, 3), h: 1 + buf.readUIntLE(27, 3) };
+  } else if (tag === 'VP8 ' && buf.length >= 30) {
+    // 丢帧头 3 字节 + 同步码 0x9D 0x01 0x2A，接着是 14 位宽、14 位高
+    if (buf[23] === 0x9d && buf[24] === 0x01 && buf[25] === 0x2a) {
+      out = { w: buf.readUInt16LE(26) & 0x3fff, h: buf.readUInt16LE(28) & 0x3fff };
+    }
+  } else if (tag === 'VP8L' && buf.length >= 25 && buf[20] === 0x2f) {
+    // 位流 LSB first：14 位宽-1、14 位高-1
+    const b = buf.readUInt32LE(21);
+    out = { w: (b & 0x3fff) + 1, h: ((b >> 14) & 0x3fff) + 1 };
+  }
+  return out && out.w > 0 && out.h > 0 ? out : null;
+}
+
+function detectDimensions(buf, ext) {
+  try {
+    if (ext === '.gif') return gifDimensions(buf);
+    if (ext === '.webp') return webpDimensions(buf);
+  } catch { }
+  return null;
+}
+
 /** 从 BGRA 位图里抠出一块子区域（色板统计用，避免白底冲淡主色） */
 function cropBGRA(pixels, pw, ph, box) {
   const x0 = Math.max(0, Math.min(box.x0 | 0, pw - 1));
@@ -157,8 +274,8 @@ class LibraryTools {
       insert: db.prepare(`INSERT INTO assets
         (id, sha, ext, name, w, h, size, added_at, used_at, category, subcategory,
          source, source_url, favorite, has_thumb, palette_at, py, py_init, cat_py, cat_py_init,
-         crop_l, crop_t, crop_r, crop_b)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+         crop_l, crop_t, crop_r, crop_b, animated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
       insertColor: db.prepare('INSERT INTO asset_colors (asset_id, idx, hex, l, a, b, pct) VALUES (?, ?, ?, ?, ?, ?, ?)'),
       clearColors: db.prepare('DELETE FROM asset_colors WHERE asset_id = ?'),
       colors: db.prepare('SELECT hex, l, a, b, pct FROM asset_colors WHERE asset_id = ? ORDER BY idx'),
@@ -208,6 +325,7 @@ class LibraryTools {
       h: trimmed ? r.h - Math.max(ct, 0) - Math.max(cb, 0) : r.h,
       cw: r.w, ch: r.h,
       cropL: cl, cropT: ct, cropR: cr, cropB: cb, trimmed,
+      animated: !!r.animated,
       size: r.size,
       addedAt: r.added_at, usedAt: r.used_at, category: r.category, subcategory: r.subcategory,
       tags, source: r.source, sourceUrl: r.source_url, fname: r.fname || '',
@@ -369,7 +487,8 @@ class LibraryTools {
       it.category, it.subcategory, it.source, it.sourceUrl, it.favorite ? 1 : 0,
       it.hasThumb ? 1 : 0, it.paletteAt || 0,
       it._py, it._init, it._cpy, it._cinit,
-      it.cropL ?? -1, it.cropT ?? -1, it.cropR ?? -1, it.cropB ?? -1
+      it.cropL ?? -1, it.cropT ?? -1, it.cropR ?? -1, it.cropB ?? -1,
+      it.animated == null ? null : it.animated ? 1 : 0
     );
   }
 
@@ -392,7 +511,14 @@ class LibraryTools {
     if (this.getBySha(sha)) return 'dup';
 
     let w = 0, h = 0, palette = [], trim = null;
-    const decoded = this.imageOps.decode ? this.imageOps.decode(buf) : null;
+    // 动图检测：纯字节解析，GIF/WebP/APNG 在导入时就标好，UI 不用再猜
+    const animated = ANIM_EXT.has(ext) ? detectAnimated(buf, ext) : false;
+    let decoded = this.imageOps.decode ? this.imageOps.decode(buf) : null;
+    if (!decoded && (ext === '.gif' || ext === '.webp')) {
+      // nativeImage 解不了 GIF/WebP：从文件头补出画布尺寸，至少让布局和 SIZE 有数
+      const dims = detectDimensions(buf, ext);
+      if (dims) { w = dims.w; h = dims.h; }
+    }
     if (decoded) {
       w = decoded.width || 0;
       h = decoded.height || 0;
@@ -448,6 +574,7 @@ class LibraryTools {
       category: cls.category, subcategory: cls.subcategory,
       tags: [], source: meta.source || 'local', sourceUrl: meta.sourceUrl || '',
       favorite: false, hasThumb: thumbOk, paletteAt: Date.now(),
+      animated,
       cropL: trim ? trim.left : -1, cropT: trim ? trim.top : -1,
       cropR: trim ? trim.right : -1, cropB: trim ? trim.bottom : -1
     };
@@ -639,6 +766,29 @@ class LibraryTools {
       }
       done++;
       if (onProgress) onProgress(done, rows.length);
+    }
+    return done;
+  }
+
+  /**
+   * 老库补标动图：animated IS NULL 的行逐个读文件判一遍。
+   * 非动图格式（jpg/bmp…）直接写 0 不用读文件；读不到文件的也写 0，保证循环会终止。
+   */
+  backfillAnimated({ limit = 32 } = {}) {
+    const rows = this.db.prepare('SELECT id, ext FROM assets WHERE animated IS NULL LIMIT ?').all(limit);
+    if (!rows.length) return 0;
+    const upd = this.db.prepare('UPDATE assets SET animated = ? WHERE id = ?');
+    let done = 0;
+    for (const r of rows) {
+      let val = 0;
+      if (ANIM_EXT.has(r.ext)) {
+        try {
+          const it = this.getById(r.id);
+          if (it) val = detectAnimated(fs.readFileSync(this.itemFile(it)), r.ext) ? 1 : 0;
+        } catch { val = 0; }
+      }
+      this.tx(() => upd.run(val, r.id));
+      done++;
     }
     return done;
   }
@@ -908,4 +1058,4 @@ class LibraryTools {
   }
 }
 
-module.exports = { LibraryTools, TREE, IMAGE_EXT, classify };
+module.exports = { LibraryTools, TREE, IMAGE_EXT, classify, detectAnimated, detectDimensions };

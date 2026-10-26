@@ -246,6 +246,23 @@ async function startPaletteBackfill() {
   }
 }
 
+let animBackfilling = false;
+async function startAnimatedBackfill() {
+  if (animBackfilling) return;
+  animBackfilling = true;
+  try {
+    for (;;) {
+      const n = await store.backfillAnimated({ limit: 32 });
+      if (!n) break;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  } catch (e) {
+    console.error('animated backfill failed', e);
+  } finally {
+    animBackfilling = false;
+  }
+}
+
 function startClipWatch() {  clipTimer = setInterval(() => {
     if (clipPaused || !win || win.isDestroyed()) return;
     try {
@@ -310,6 +327,7 @@ app.whenReady().then(async () => {
   buildTray();
   startClipWatch();
   startPaletteBackfill();
+  startAnimatedBackfill();
 
   if (process.env.RC_SHOT) {
     const target = process.env.RC_SHOT;
@@ -391,13 +409,17 @@ ipcMain.handle('lib:info', () => ({
   tree: store.getCats() || TREE
 }));
 
-/** toItem 的结果裁成 renderer 需要的普通对象（lib:list 与画板共用，保证字段一致） */
+/** toItem 的结果裁成 renderer 需要的普通对象（lib:list 与画板视图共用，保证字段一致） */
 const plainItem = (it) => ({
   id: it.id, sha: it.sha, name: it.name, w: it.w, h: it.h, size: it.size,
   addedAt: it.addedAt, usedAt: it.usedAt, category: it.category,
   subcategory: it.subcategory, tags: it.tags, source: it.source,
   sourceUrl: it.sourceUrl, favorite: it.favorite, ext: it.ext,
-  hasThumb: it.hasThumb, deletedAt: it.deletedAt, simScore: it.simScore
+  hasThumb: it.hasThumb, deletedAt: it.deletedAt, simScore: it.simScore,
+  animated: it.animated,
+  // 白边裁剪元数据：灯箱与检查器预览的裁剪显示都靠它（此前漏传，裁剪显示不生效）
+  cw: it.cw, ch: it.ch, trimmed: it.trimmed,
+  cropL: it.cropL, cropT: it.cropT, cropR: it.cropR, cropB: it.cropB
 });
 
 ipcMain.handle('lib:list', (e, opts) => store.list(opts || {}).map(plainItem));

@@ -1,6 +1,6 @@
 import React, { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { thumbUrl, type Item, type Sort, type Workset } from '../types';
+import { animLabel, thumbUrl, type Item, type Sort, type Workset } from '../types';
 import { Select } from './Select';
 
 const SORTS = [
@@ -271,6 +271,7 @@ export const Card = React.memo(function Card({
     >
       <div className="frame">
         <img src={thumbUrl(it)} alt={it.name} loading="lazy" draggable={false} />
+        {animLabel(it) && <span className="animchip">{animLabel(it)}</span>}
         <div
           className="pull"
           title="按住拖到 Photoshop / SAI 窗口即可插入原图"

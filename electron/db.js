@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-// v5 由并行分支加 clip 列（合并时对齐）；本分支 v6 加画板两张表
+// v5 = 动图标记（animated 列）；v6 = 画板两张表；v7 预留给 CLIP 列（feat/clip-classify 合并时升）
 const SCHEMA_VERSION = 6;
 
 const SCHEMA = `
@@ -104,6 +104,10 @@ function openDatabase(root) {
     if (!cols.includes(c)) {
       db.exec(`ALTER TABLE assets ADD COLUMN ${c} INTEGER NOT NULL DEFAULT -1`);
     }
+  }
+  // v4 -> v5：动图标记。NULL = 还没查过（启动时 backfillAnimated 补齐），1 = 会动，0 = 静态
+  if (!cols.includes('animated')) {
+    db.exec('ALTER TABLE assets ADD COLUMN animated INTEGER');
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_assets_live ON assets(deleted_at)');
 
