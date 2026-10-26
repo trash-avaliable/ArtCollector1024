@@ -50,6 +50,11 @@ contextBridge.exposeInMainWorld('api', {
     rename: (id, name) => ipcRenderer.invoke('lib:rename', { id, name }),
     getPrefs: () => ipcRenderer.invoke('ui:get-prefs'),
     setPrefs: (patch) => ipcRenderer.invoke('ui:set-prefs', patch),
+    hotkeysCurrent: () => ipcRenderer.invoke('hotkeys:current'),
+    getLoginItem: () => ipcRenderer.invoke('app:get-login-item'),
+    setLoginItem: (open) => ipcRenderer.invoke('app:set-login-item', open),
+    openLogs: () => ipcRenderer.invoke('lib:open-logs'),
+    version: () => ipcRenderer.invoke('app:version'),
     copyImage: (id) => ipcRenderer.invoke('lib:copy-image', id),
     colors: (id) => ipcRenderer.invoke('lib:colors', id),
     searchColors: (opts) => ipcRenderer.invoke('lib:search-colors', opts),
@@ -89,6 +94,7 @@ contextBridge.exposeInMainWorld('api', {
     clipImage: (cb) => on('clip:image', cb),
     focusSearch: (cb) => on('ui:focus-search', cb),
     saveClip: (cb) => on('ui:save-clip', cb),
-    librarySwitched: (cb) => on('library:switched', cb)
+    librarySwitched: (cb) => on('library:switched', cb),
+    hotkeysState: (cb) => on('hotkeys:state', cb)
   }
 });

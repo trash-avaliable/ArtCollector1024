@@ -70,7 +70,15 @@ export type ClipInfo = { file: string; width: number; height: number; dataUrl: s
 
 export type Sort = 'new' | 'old' | 'name' | 'size';
 
-export type Prefs = { railViews?: View[]; railCats?: string[] };
+export type Prefs = {
+  railViews?: View[]; railCats?: string[];
+  hotkeys?: Record<string, string>;
+  appKeys?: Record<string, string>;
+  general?: { closeToTray?: boolean; clipWatch?: boolean; autoTrim?: boolean; launchAtLogin?: boolean };
+  clip?: { enabled?: boolean; threshold?: number };
+  crawler?: { maxPerTask?: number; sameDomainOnly?: boolean; domainDelaySec?: number; whitelist?: string; confirmed?: boolean };
+  ui?: { density?: 'cozy' | 'compact'; reducedMotion?: boolean };
+};
 
 export type ColorHit = { hex: string; dist: number; pct: number };
 
@@ -122,6 +130,11 @@ declare global {
         rename(id: string, name: string): Promise<{ item?: Item; error?: string }>;
         getPrefs(): Promise<Prefs>;
         setPrefs(patch: Partial<Prefs>): Promise<Prefs>;
+        hotkeysCurrent(): Promise<{ bindings: Record<string, string>; registered: Record<string, boolean> }>;
+        getLoginItem(): Promise<boolean>;
+        setLoginItem(open: boolean): Promise<boolean>;
+        openLogs(): Promise<string>;
+        version(): Promise<string>;
         copyImage(id: string): Promise<boolean>;
         colors(id: string): Promise<PaletteColor[]>;
         searchColors(opts: { colors: (string | { hex: string; weight?: number })[]; threshold?: number; limit?: number; category?: string | null }): Promise<(Item & { colorScore: number; matched: { hex: string; dist: number; pct: number }[] })[]>;
@@ -157,6 +170,7 @@ declare global {
         focusSearch(cb: () => void): () => void;
         saveClip(cb: () => void): () => void;
         librarySwitched(cb: (p: { root: string; stats: Stats }) => void): () => void;
+        hotkeysState(cb: (p: { bindings: Record<string, string>; registered: Record<string, boolean> }) => void): () => void;
       };
     };
   }

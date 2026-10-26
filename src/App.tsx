@@ -4,6 +4,8 @@ import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
+import { Settings } from './components/Settings';
+import { fullPrefs, matchesAppKey, type FullPrefs } from './lib/settings-core';
 import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset } from './types';
 
 const idsOf = (s: Set<string>): string[] => {
@@ -55,11 +57,16 @@ export default function App() {
   const [confirmWs, setConfirmWs] = useState<Workset | null>(null);
   const [settings, setSettings] = useState(false);
   const [bridge, setBridge] = useState<{ port: number; token: string; extDir: string } | null>(null);
+  const [prefsFull, setPrefsFull] = useState<FullPrefs>(fullPrefs(undefined));
+  const [hotkeys, setHotkeys] = useState<{ bindings: Record<string, string>; registered: Record<string, boolean> } | null>(null);
+  const [version, setVersion] = useState('');
   const [scan, setScan] = useState<{ root: string; result: ScanResult | null; picked: Set<string>; loose: boolean } | null>(null);
 
   useEffect(() => {
     if (!settings) return;
     window.api.bridge.info().then(setBridge).catch(() => { });
+    window.api.lib.hotkeysCurrent().then(setHotkeys).catch(() => { });
+    window.api.lib.version().then(setVersion).catch(() => { });
   }, [settings]);
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -102,6 +109,9 @@ export default function App() {
   useEffect(() => {
     (async () => {
       const [info, prefs] = await Promise.all([window.api.lib.info(), window.api.lib.getPrefs()]);
+      setPrefsFull(fullPrefs(prefs));
+      window.api.lib.hotkeysCurrent().then(setHotkeys).catch(() => { });
+      window.api.lib.version().then(setVersion).catch(() => { });
       setRoot(info.root);
       setStats(info.stats);
       setTree(info.tree);
@@ -123,13 +133,14 @@ export default function App() {
     });
     const off4 = window.api.on.clipImage(c => setClip(c));
     const off5 = window.api.on.focusSearch(() => searchRef.current?.focus());
+    const offHk = window.api.on.hotkeysState(setHotkeys);
     const off6 = window.api.on.librarySwitched(async (p) => {
       setRoot(p.root);
       setStats(p.stats);
       setSelectedIds(new Set());
       await refreshRef.current();
     });
-    return () => { off1(); off2(); off3(); off4(); off5(); off6(); };
+    return () => { off1(); off2(); off3(); off4(); off5(); offHk(); off6(); };
   }, []);
 
   useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim, wsFilter]);
@@ -160,7 +171,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const typing = t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA';
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); doImport(); }
+      if (matchesAppKey(e, prefsFull.appKeys?.import)) { e.preventDefault(); doImport(); }
       if (e.key === 'Escape') {
         if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
         setLightboxId(null); setClip(null);
@@ -181,7 +192,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, items, view, category, sub]);
+  }, [selectedIds, items, view, category, sub, prefsFull]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => { e.preventDefault(); };
@@ -494,6 +505,11 @@ export default function App() {
     await refresh();
   };
 
+  const onSetPrefs = async (patch: Partial<Prefs>) => {
+    const saved = await window.api.lib.setPrefs(patch);
+    setPrefsFull(fullPrefs(saved));
+  };
+
   const pickRoot = async () => {
     const p = await window.api.lib.pickRoot();
     if (p) { setSettings(false); setAskRoot(p); }
@@ -607,7 +623,8 @@ export default function App() {
   const animateIn = fadeKey === bootKeyRef.current;
 
   return (
-    <div className="win" data-ark-theme="endfield" data-ark-depth="complex">
+    <div className="win" data-ark-theme="endfield" data-ark-depth="complex"
+      data-density={prefsFull.ui.density} data-reduce={prefsFull.ui.reducedMotion ? '1' : '0'}>
       <TitleBar crumb={crumb} maximized={maximized} onSettings={() => setSettings(true)} />
       <div className="app" data-dock={selected ? 'open' : 'idle'}>
         <Rail
@@ -748,40 +765,20 @@ export default function App() {
       {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
       {settings && (
-        <div className="modal-veil" onClick={() => setSettings(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="mt">库设置</div>
-            <div className="mp" title={root}>{root || '未初始化'}</div>
-            <div className="mh">
-              当前库占用 {stats.total} 张图{stats.trash ? `，回收站里还有 ${stats.trash} 张` : ''}。换目录时可以连同素材一起搬过去。
-            </div>
-            <div className="bridgebox">
-              <div className="bh">浏览器扩展 · 右键存图</div>
-              <div className="brow"><span>端口</span><b>{bridge?.port ?? '—'}</b></div>
-              <div className="brow">
-                <span>令牌</span>
-                <b className="tk">{bridge?.token ?? '—'}</b>
-                <button
-                  onClick={() => bridge && navigator.clipboard?.writeText(bridge.token)}
-                  title="复制令牌，填到扩展设置里"
-                >复制</button>
-              </div>
-              <div className="brow">
-                <span>目录</span>
-                <b className="tk" title={bridge?.extDir}>{bridge?.extDir ?? '—'}</b>
-                <button onClick={() => window.api.bridge.openExt()}>打开</button>
-              </div>
-              <div className="btip">
-                chrome://extensions → 开「开发者模式」→「加载已解压的扩展程序」→ 选上面这个目录，再把令牌粘到扩展设置页。
-              </div>
-            </div>
-            <div className="mb">
-              <button onClick={() => setSettings(false)}>关闭</button>
-              <button onClick={() => window.api.lib.openRoot()}>打开目录</button>
-              <button className="primary" onClick={pickRoot}>更换库目录</button>
-            </div>
-          </div>
-        </div>
+        <Settings
+          root={root}
+          stats={stats}
+          bridge={bridge}
+          prefs={prefsFull}
+          hotkeys={hotkeys}
+          version={version}
+          onSetPrefs={onSetPrefs}
+          onPickRoot={pickRoot}
+          onOpenRoot={() => window.api.lib.openRoot()}
+          onOpenExt={() => window.api.bridge.openExt()}
+          onOpenLogs={() => window.api.lib.openLogs()}
+          onClose={() => setSettings(false)}
+        />
       )}
 
       {confirmDel && (

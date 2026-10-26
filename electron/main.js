@@ -18,6 +18,7 @@ const EXT_DIR = app.isPackaged
   : path.join(__dirname, '..', 'extension');
 const isDev = !!process.env.VITE_DEV;
 const logger = require('./logger');
+const LOGGER = { dir: '' };
 
 if (process.env.RC_NOGPU === '1') {
   try { app.disableHardwareAcceleration(); } catch { }
@@ -114,7 +115,7 @@ function createWindow() {
 
   win.on('close', (e) => {
     saveState();
-    if (!quitting) { e.preventDefault(); win.hide(); }
+    if (!quitting && store.getPrefs().general?.closeToTray !== false) { e.preventDefault(); win.hide(); }
   });
   win.on('closed', () => { win = null; });
 
@@ -293,8 +294,31 @@ function startClipWatch() {  clipTimer = setInterval(async () => {
 app.requestSingleInstanceLock();
 app.on('second-instance', showWindow);
 
+/* ---- 全局热键：读 prefs（设置页可改），冲突的键位自动跳过 ---- */
+let hotkeyState = {};
+function applyHotkeys() {
+  const { normalizeAccelerator } = require('./hotkey-util');
+  const hk = { ...require('./hotkey-util').DEFAULT_HOTKEYS, ...(store.getPrefs().hotkeys || {}) };
+  globalShortcut.unregisterAll();
+  const reg = (acc, fn) => {
+    const norm = normalizeAccelerator(acc);
+    if (!norm) return false;
+    try { return globalShortcut.register(norm, fn); } catch { return false; }
+  };
+  hotkeyState = {
+    wake: reg(hk.wake, () => {
+      showWindow();
+      if (win && !win.webContents.isLoading()) win.webContents.send('ui:focus-search');
+    }),
+    saveClip: reg(hk.saveClip, () => { if (win) win.webContents.send('ui:save-clip'); }),
+    // 置顶窗开了鼠标穿透后点不到它，用快捷键收回
+    pinIgnore: reg(hk.pinIgnore, () => setPinIgnore(!pinIgnore))
+  };
+  if (win && !win.isDestroyed()) win.webContents.send('hotkeys:state', { bindings: hk, registered: hotkeyState });
+}
+
 app.whenReady().then(async () => {
-  logger.install(app, ipcMain);
+  Object.assign(LOGGER, logger.install(app, ipcMain));
   await store.init();
   store.ensureBridgeToken();
   startBridge({
@@ -366,15 +390,7 @@ app.whenReady().then(async () => {
     else shoot();
   }
 
-  globalShortcut.register('Alt+Space', () => {
-    showWindow();
-    if (win && !win.webContents.isLoading()) win.webContents.send('ui:focus-search');
-  });
-  globalShortcut.register('Control+Shift+S', () => {
-    if (win) win.webContents.send('ui:save-clip');
-  });
-  // 置顶窗开了鼠标穿透后点不到它，用快捷键收回
-  globalShortcut.register('Control+Shift+P', () => setPinIgnore(!pinIgnore));
+  applyHotkeys();
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
@@ -679,7 +695,12 @@ ipcMain.handle('lib:attach-scan', async (e, { root, groups }) => {
 ipcMain.handle('lib:rename', (e, { id, name }) => store.rename(id, name));
 
 ipcMain.handle('ui:get-prefs', () => store.getPrefs());
-ipcMain.handle('ui:set-prefs', (e, patch) => store.setPrefs(patch));
+ipcMain.handle('ui:set-prefs', (e, patch) => {
+  const r = store.setPrefs(patch);
+  if (patch && patch.hotkeys) applyHotkeys();
+  return r;
+});
+ipcMain.handle('hotkeys:current', () => ({ bindings: { ...require('./hotkey-util').DEFAULT_HOTKEYS, ...(store.getPrefs().hotkeys || {}) }, registered: hotkeyState }));
 
 /* Electron 45 起 clipboard 模块换成 W3C 风格异步 API（read/write + ClipboardItem），
    旧的 writeImage / readImage 已移除：统一走这里，图片按 image/png Blob 写入 */
@@ -788,6 +809,13 @@ ipcMain.handle('bridge:info', () => ({
   extDir: EXT_DIR
 }));
 ipcMain.handle('bridge:open-ext', () => shell.openPath(EXT_DIR));
+ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin);
+ipcMain.handle('app:set-login-item', (_e, open) => {
+  app.setLoginItemSettings({ openAtLogin: !!open, path: process.execPath });
+  return app.getLoginItemSettings().openAtLogin;
+});
+ipcMain.handle('lib:open-logs', () => shell.openPath(LOGGER.dir));
+ipcMain.handle('app:version', () => app.getVersion());
 
 /* ---- 置顶参考窗 ---- */
 ipcMain.handle('pin:open', (e, id) => openPin(id));
