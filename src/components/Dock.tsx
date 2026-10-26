@@ -1,6 +1,55 @@
-import { useEffect, useRef, useState } from 'react';
-import { fmtDate, fmtSize, type ColorHit, type Item, type Stats, type Tree } from '../types';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { animLabel, cropImgStyle, cropOf, fmtDate, fmtSize, origUrl, thumbUrl, type ColorHit, type Item, type Stats, type Tree } from '../types';
 import { Select } from './Select';
+
+/**
+ * 检查器顶部预览框：静态图显示裁剪后的缩略图，动图直接播原始文件。
+ * 动图带白边裁剪时，套用与灯箱一致的「外层容器 + 内层原图负偏移」逻辑
+ * （cropImgStyle），动画照播、白边照样被裁掉。
+ */
+function Pv({ item }: { item: Item }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const update = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [item.id]);
+
+  const anim = animLabel(item);
+  const crop = cropOf(item);
+
+  // 裁剪的动图：先按内容宽高比把「舞台」装进 16/10 的预览框，再在舞台里做负偏移裁剪
+  let stage: { w: number; h: number } | null = null;
+  if (item.animated && crop.cropped && box.w > 0 && box.h > 0) {
+    const r = item.w / Math.max(1, item.h);
+    let w = box.w, h = w / r;
+    if (h > box.h) { h = box.h; w = h * r; }
+    stage = { w: Math.round(w), h: Math.round(h) };
+  }
+
+  return (
+    <div className="pv" ref={boxRef} title={item.animated ? '动图 · 检查器里直接播放' : undefined}>
+      {item.animated ? (
+        stage ? (
+          <div className="pvfit" style={{ width: stage.w, height: stage.h }}>
+            <img src={origUrl(item)} alt={item.name} style={cropImgStyle(item) || undefined} />
+          </div>
+        ) : (
+          <img src={origUrl(item)} alt={item.name} />
+        )
+      ) : (
+        <img src={thumbUrl(item)} alt={item.name} />
+      )}
+      {anim && <span className="animchip">{anim}</span>}
+    </div>
+  );
+}
 
 export function Dock({
   stats, count, label, selected, cats, tree, busy, editSignal,
@@ -84,6 +133,7 @@ export function Dock({
       <div className="dbody">
         {selected ? (
           <>
+            <Pv item={selected} />
             {editing ? (
               <div className="rename">
                 <input
@@ -121,7 +171,7 @@ export function Dock({
             <div className="metarow">
               <div><span>SIZE</span><b>{selected.w}×{selected.h}</b></div>
               <div><span>FILE</span><b>{fmtSize(selected.size)}</b></div>
-              <div><span>FMT</span><b>{selected.ext.replace('.', '').toUpperCase()}</b></div>
+              <div><span>FMT</span><b title={selected.animated ? '动图' : undefined}>{selected.ext.replace('.', '').toUpperCase()}{selected.animated ? ' · 动' : ''}</b></div>
               <div><span>ADDED</span><b>{fmtDate(selected.addedAt)}</b></div>
             </div>
 

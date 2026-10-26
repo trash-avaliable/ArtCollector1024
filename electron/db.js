@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -88,6 +88,10 @@ function openDatabase(root) {
     if (!cols.includes(c)) {
       db.exec(`ALTER TABLE assets ADD COLUMN ${c} INTEGER NOT NULL DEFAULT -1`);
     }
+  }
+  // v4 -> v5：动图标记。NULL = 还没查过（启动时 backfillAnimated 补齐），1 = 会动，0 = 静态
+  if (!cols.includes('animated')) {
+    db.exec('ALTER TABLE assets ADD COLUMN animated INTEGER');
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_assets_live ON assets(deleted_at)');
 

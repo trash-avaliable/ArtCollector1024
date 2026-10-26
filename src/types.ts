@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 export type Item = {
   id: string;
   sha: string;
@@ -12,6 +14,8 @@ export type Item = {
   cropR?: number;
   cropB?: number;
   trimmed?: boolean;
+  /** 动图标记：GIF 多帧 / 动态 WebP / APNG（主进程解析字节得出） */
+  animated?: boolean;
   size: number;
   addedAt: number;
   usedAt: number;
@@ -146,6 +150,51 @@ declare global {
 export const thumbUrl = (it: Item) =>
   it.hasThumb ? `refimg://thumb/${it.sha}` : `refimg://orig/${it.sha}`;
 export const origUrl = (it: Item) => `refimg://orig/${it.sha}`;
+
+/* ---------- 动图 / 白边裁剪共享工具（卡片、灯箱、检查器预览共用） ---------- */
+
+export type CropBox = {
+  cl: number; ct: number; cr: number; cb: number;
+  cropped: boolean;
+  /** 原始画布尺寸 */
+  W: number; H: number;
+};
+
+/** 把裁剪元数据整理成各处都能用的形态 */
+export function cropOf(it: Item): CropBox {
+  const cl = Math.max(0, it.cropL || 0), ct = Math.max(0, it.cropT || 0);
+  const cr = Math.max(0, it.cropR || 0), cb = Math.max(0, it.cropB || 0);
+  return {
+    cl, ct, cr, cb,
+    cropped: cl + ct + cr + cb > 0,
+    W: it.cw || it.w, H: it.ch || it.h
+  };
+}
+
+/**
+ * 裁白边显示的内层原图样式：外层容器按内容比例占位（overflow hidden），
+ * 内层 img 用负偏移把白边推出视口。未裁剪返回 null。
+ * 灯箱与检查器预览共用，保证两处裁剪表现一致。
+ */
+export function cropImgStyle(it: Item): CSSProperties | null {
+  const { cl, ct, cropped, W, H } = cropOf(it);
+  if (!cropped) return null;
+  const fx = it.w / Math.max(1, W), fy = it.h / Math.max(1, H);
+  return {
+    position: 'absolute',
+    left: `${-(cl / Math.max(1, it.w)) * 100}%`,
+    top: `${-(ct / Math.max(1, it.h)) * 100}%`,
+    width: `${(1 / fx) * 100}%`,
+    height: `${(1 / fy) * 100}%`,
+    objectFit: 'fill'
+  };
+}
+
+/** 动图角标文案：GIF 显示「GIF」，动态 WebP / APNG 显示「动」，静态图返回 null */
+export function animLabel(it: Item): string | null {
+  if (!it.animated) return null;
+  return it.ext === '.gif' ? 'GIF' : '动';
+}
 
 export const fmtSize = (n: number) => {
   if (!n) return '—';

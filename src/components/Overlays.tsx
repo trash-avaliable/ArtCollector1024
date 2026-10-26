@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { origUrl, type ClipInfo, type Item, type Toast } from '../types';
+import { animLabel, cropImgStyle, cropOf, origUrl, type ClipInfo, type Item, type Toast } from '../types';
 
 export function Lightbox({
   item, onClose, onNav
@@ -46,18 +46,17 @@ export function Lightbox({
   };
 
   // 裁白边显示：外层容器只露出内容区，内层原图用负偏移把白边推出视口
-  const cl = Math.max(0, item.cropL || 0), ct = Math.max(0, item.cropT || 0);
-  const cr = Math.max(0, item.cropR || 0), cb = Math.max(0, item.cropB || 0);
-  const cropped = (cl + ct + cr + cb) > 0;
-  const W = item.cw || item.w, H = item.ch || item.h;
-  const fx = cropped ? item.w / W : 1;
-  const fy = cropped ? item.h / H : 1;
+  // （裁剪计算收在 types.ts 的 cropOf / cropImgStyle，检查器预览共用同一份逻辑）
+  const crop = cropOf(item);
+  const cropStyle = cropImgStyle(item);
+  const anim = animLabel(item);
+  const W = crop.W, H = crop.H;
 
   return (
     <div className="lightbox" onClick={onClose}>
       <div
         className={'lbstage' + (altDown ? ' picking' : '')}
-        style={cropped ? {
+        style={crop.cropped ? {
           aspectRatio: `${item.w} / ${item.h}`,
           width: `min(92vw, calc(86vh * ${item.w / Math.max(1, item.h)}))`
         } : undefined}
@@ -72,13 +71,7 @@ export function Lightbox({
           ref={imgRef}
           src={origUrl(item)}
           alt={item.name}
-          style={cropped ? {
-            position: 'absolute', left: `${-(cl / Math.max(1, item.w)) * 100}%`, top: `${-(ct / Math.max(1, item.h)) * 100}%`,
-            width: `${(1 / fx) * 100}%`, height: `${(1 / fy) * 100}%`, objectFit: 'fill',
-            transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`
-          } : {
-            transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`
-          }}
+          style={{ ...(cropStyle || {}), transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})` }}
           draggable={false}
           onClick={e => {
             e.stopPropagation();
@@ -112,9 +105,10 @@ export function Lightbox({
       )}
 
       <div className="hud" onClick={e => e.stopPropagation()}>
+        {anim && <span className="animchip" title="动图：灯箱里直接播放">{anim}</span>}
         <b>{item.name}</b>
         <span>{item.w}×{item.h}</span>
-        {cropped && <span>已裁白边（原图 {W}×{H}）</span>}
+        {crop.cropped && <span>已裁白边（原图 {W}×{H}）</span>}
         <span>{Math.round(zoom * 100)}%</span>
         <span style={{ marginLeft: 'auto' }}>拖拽平移 · 滚轮缩放 · Alt 点图取色 · ← → 切换 · 0 复位 · ESC 关闭</span>
       </div>
