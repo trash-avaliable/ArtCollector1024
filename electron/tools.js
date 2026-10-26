@@ -8,6 +8,21 @@ const { paletteFromBGRA, hexToLab, deltaE76 } = require('./palette');
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.avif']);
 
+/** 从 BGRA 位图里抠出一块子区域（色板统计用，避免白底冲淡主色） */
+function cropBGRA(pixels, pw, ph, box) {
+  const x0 = Math.max(0, Math.min(box.x0 | 0, pw - 1));
+  const y0 = Math.max(0, Math.min(box.y0 | 0, ph - 1));
+  const x1 = Math.max(x0 + 1, Math.min(box.x1 | 0, pw));
+  const y1 = Math.max(y0 + 1, Math.min(box.y1 | 0, ph));
+  const cw = x1 - x0, ch = y1 - y0;
+  const out = Buffer.alloc(cw * ch * 4);
+  for (let y = 0; y < ch; y++) {
+    const srcStart = ((y0 + y) * pw + x0) * 4;
+    pixels.copy(out, y * cw * 4, srcStart, srcStart + cw * 4);
+  }
+  return out;
+}
+
 const TREE = [
   ['人体结构', ['手部', '足部', '头部五官', '躯干动态', '骨点关节', '肌肉']],
   ['动态与透视', ['姿势', '运动线', '透视网格', '构图']],
@@ -141,8 +156,9 @@ class LibraryTools {
       byCat: db.prepare('SELECT * FROM assets WHERE category = ?'),
       insert: db.prepare(`INSERT INTO assets
         (id, sha, ext, name, w, h, size, added_at, used_at, category, subcategory,
-         source, source_url, favorite, has_thumb, palette_at, py, py_init, cat_py, cat_py_init)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+         source, source_url, favorite, has_thumb, palette_at, py, py_init, cat_py, cat_py_init,
+         crop_l, crop_t, crop_r, crop_b)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
       insertColor: db.prepare('INSERT INTO asset_colors (asset_id, idx, hex, l, a, b, pct) VALUES (?, ?, ?, ?, ?, ?, ?)'),
       clearColors: db.prepare('DELETE FROM asset_colors WHERE asset_id = ?'),
       colors: db.prepare('SELECT hex, l, a, b, pct FROM asset_colors WHERE asset_id = ? ORDER BY idx'),
@@ -157,8 +173,16 @@ class LibraryTools {
   }
 
   toItem(r, tags = []) {
+    const cl = r.crop_l ?? -1, ct = r.crop_t ?? -1, cr = r.crop_r ?? -1, cb = r.crop_b ?? -1;
+    const trimmed = (cl > 0 || ct > 0 || cr > 0 || cb > 0);
     return {
-      id: r.id, sha: r.sha, ext: r.ext, name: r.name, w: r.w, h: r.h, size: r.size,
+      id: r.id, sha: r.sha, ext: r.ext, name: r.name,
+      // w/h 是裁掉白边后的内容尺寸（布局与展示用）；cw/ch 是原始画布
+      w: trimmed ? r.w - Math.max(cl, 0) - Math.max(cr, 0) : r.w,
+      h: trimmed ? r.h - Math.max(ct, 0) - Math.max(cb, 0) : r.h,
+      cw: r.w, ch: r.h,
+      cropL: cl, cropT: ct, cropR: cr, cropB: cb, trimmed,
+      size: r.size,
       addedAt: r.added_at, usedAt: r.used_at, category: r.category, subcategory: r.subcategory,
       tags, source: r.source, sourceUrl: r.source_url, fname: r.fname || '',
       deletedAt: r.deleted_at || 0,
@@ -318,7 +342,8 @@ class LibraryTools {
       it.id, it.sha, it.ext, it.name, it.w, it.h, it.size, it.addedAt, it.usedAt,
       it.category, it.subcategory, it.source, it.sourceUrl, it.favorite ? 1 : 0,
       it.hasThumb ? 1 : 0, it.paletteAt || 0,
-      it._py, it._init, it._cpy, it._cinit
+      it._py, it._init, it._cpy, it._cinit,
+      it.cropL ?? -1, it.cropT ?? -1, it.cropR ?? -1, it.cropB ?? -1
     );
   }
 
@@ -340,19 +365,40 @@ class LibraryTools {
     const sha = crypto.createHash('sha256').update(buf).digest('hex');
     if (this.getBySha(sha)) return 'dup';
 
-    let w = 0, h = 0, palette = [];
+    let w = 0, h = 0, palette = [], trim = null;
     const decoded = this.imageOps.decode ? this.imageOps.decode(buf) : null;
     if (decoded) {
       w = decoded.width || 0;
       h = decoded.height || 0;
-      try {
-        palette = paletteFromBGRA(decoded.pixels, decoded.pw, decoded.ph);
-      } catch { palette = []; }
+      // 自动裁白边：微信/截图图常把大片白底烤进文件，显示时会顶出一圈空白
+      if (this.imageOps.detectTrim) {
+        try { trim = this.imageOps.detectTrim(buf); } catch { trim = null; }
+      }
+      if (trim && decoded.pw && decoded.ph) {
+        // 把裁剪框按比例映射到色板用的预览位图上，避免白底冲淡主色
+        try {
+          palette = paletteFromBGRA(
+            cropBGRA(decoded.pixels, decoded.pw, decoded.ph, {
+              x0: Math.round((trim.left / decoded.width) * decoded.pw),
+              y0: Math.round((trim.top / decoded.height) * decoded.ph),
+              x1: Math.round(((trim.left + trim.width) / decoded.width) * decoded.pw),
+              y1: Math.round(((trim.top + trim.height) / decoded.height) * decoded.ph)
+            }),
+            Math.max(1, Math.round((trim.width / decoded.width) * decoded.pw)),
+            Math.max(1, Math.round((trim.height / decoded.height) * decoded.ph))
+          );
+        } catch { palette = []; }
+      } else {
+        try {
+          palette = paletteFromBGRA(decoded.pixels, decoded.pw, decoded.ph);
+        } catch { palette = []; }
+      }
     }
 
     let thumbOk = false;
     if (this.imageOps.makeThumb) {
-      try { thumbOk = !!this.imageOps.makeThumb(buf, this.thumbPath(sha)); } catch { thumbOk = false; }
+      const cropArg = trim ? { left: trim.left, top: trim.top, width: trim.width, height: trim.height } : undefined;
+      try { thumbOk = !!this.imageOps.makeThumb(buf, this.thumbPath(sha), cropArg); } catch { thumbOk = false; }
     }
 
     const dir = path.join(this.root, 'files', sha.slice(0, 2), sha.slice(2, 4));
@@ -375,7 +421,9 @@ class LibraryTools {
       size: buf.length, addedAt: Date.now(), usedAt: 0,
       category: cls.category, subcategory: cls.subcategory,
       tags: [], source: meta.source || 'local', sourceUrl: meta.sourceUrl || '',
-      favorite: false, hasThumb: thumbOk, paletteAt: Date.now()
+      favorite: false, hasThumb: thumbOk, paletteAt: Date.now(),
+      cropL: trim ? trim.left : -1, cropT: trim ? trim.top : -1,
+      cropR: trim ? trim.right : -1, cropB: trim ? trim.bottom : -1
     };
     item._py = py(name);
     item._init = pyInit(name);
@@ -567,6 +615,55 @@ class LibraryTools {
       if (onProgress) onProgress(done, rows.length);
     }
     return done;
+  }
+
+  /**
+   * 给已有图裁白边：检测 → 存裁剪框 → 重生成缩略图 → 重提色板。
+   * 原图文件不动；已经在库里的图不用重新导入。
+   */
+  async trimItems(ids, onProgress) {
+    if (!this.imageOps.detectTrim || !this.imageOps.makeThumb) return { n: 0, changed: 0 };
+    const upd = this.db.prepare('UPDATE assets SET crop_l = ?, crop_t = ?, crop_r = ?, crop_b = ? WHERE id = ?');
+    let changed = 0, n = 0;
+    for (const id of ids) {
+      const r = this.q.byId.get(id);
+      if (!r || r.deleted_at) continue;
+      n++;
+      try {
+        const it = this.toItem(r);
+        const buf = await fsp.readFile(this.itemFile(it));
+        const trim = this.imageOps.detectTrim(buf);
+        if (!trim) continue;
+        const cur = [r.crop_l ?? -1, r.crop_t ?? -1, r.crop_r ?? -1, r.crop_b ?? -1];
+        const next = [trim.left, trim.top, trim.right, trim.bottom];
+        if (cur[0] === next[0] && cur[1] === next[1] && cur[2] === next[2] && cur[3] === next[3]) continue;
+        this.tx(() => upd.run(next[0], next[1], next[2], next[3], id));
+        const cropArg = { left: trim.left, top: trim.top, width: trim.width, height: trim.height };
+        try { this.imageOps.makeThumb(buf, this.thumbPath(r.sha), cropArg); } catch { }
+        const decoded = this.imageOps.decode ? this.imageOps.decode(buf) : null;
+        if (decoded && decoded.pw && decoded.ph) {
+          try {
+            const pal = paletteFromBGRA(
+              cropBGRA(decoded.pixels, decoded.pw, decoded.ph, {
+                x0: Math.round((trim.left / r.w) * decoded.pw),
+                y0: Math.round((trim.top / r.h) * decoded.ph),
+                x1: Math.round(((trim.left + trim.width) / r.w) * decoded.pw),
+                y1: Math.round(((trim.top + trim.height) / r.h) * decoded.ph)
+              }),
+              Math.max(1, Math.round((trim.width / r.w) * decoded.pw)),
+              Math.max(1, Math.round((trim.height / r.h) * decoded.ph))
+            );
+            this.tx(() => {
+              this.insertColors(id, pal);
+              this.q.setPaletteAt.run(Date.now(), id);
+            });
+          } catch { }
+        }
+        changed++;
+      } catch { }
+      if (onProgress) onProgress(n, ids.length);
+    }
+    return { n, changed };
   }
 
   migrateFromJson(jsonPath) {

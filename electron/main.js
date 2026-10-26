@@ -6,7 +6,7 @@ const {
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { store, TREE } = require('./store');
+const { store, TREE, IMAGE_EXT } = require('./store');
 const { startBridge, PORT: BRIDGE_PORT } = require('./bridge');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -517,6 +517,121 @@ ipcMain.handle('lib:apply-root', async (e, { root: next, migrate }) => {
   const root = await store.setRoot(next, { migrate: !!migrate });
   const payload = { root, stats: store.stats() };
   if (!e.sender.isDestroyed()) e.sender.send('library:switched', payload);
+  return payload;
+});
+
+/* ---- 白边裁剪 ---- */
+ipcMain.handle('lib:trim-items', async (e, ids) => {
+  const sender = e.sender;
+  const r = await store.trimItems(ids, (done, total) => {
+    if (!sender.isDestroyed()) sender.send('import:progress', { done, total, added: 0 });
+  });
+  if (!sender.isDestroyed()) sender.send('import:done', { added: 0, dup: 0, failed: 0, total: 0, stats: store.stats() });
+  return r;
+});
+
+/* ---- 换库目录前扫描：看看新目录里有哪些图片文件夹可以接入 ---- */
+ipcMain.handle('lib:scan-root', async (e, dir) => {
+  const out = { groups: [], loose: 0, total: 0, error: '' };
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+  catch (err) { out.error = '读不了这个目录：' + err.message; return out; }
+  const SKIP = new Set(['files', 'thumbs', 'node_modules', '$RECYCLE.BIN', 'System Volume Information']);
+  const countImages = (d, depth) => {
+    let n = 0;
+    let list = [];
+    try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { return 0; }
+    for (const en of list) {
+      if (en.name.startsWith('.')) continue;
+      const full = path.join(d, en.name);
+      if (en.isDirectory()) { if (depth < 3) n += countImages(full, depth + 1); }
+      else if (IMAGE_EXT.has(path.extname(en.name).toLowerCase())) n++;
+    }
+    return n;
+  };
+  const listFiles = (d) => {
+    const files = [];
+    try {
+      for (const en of fs.readdirSync(d, { withFileTypes: true })) {
+        if (en.isFile() && IMAGE_EXT.has(path.extname(en.name).toLowerCase())) files.push(path.join(d, en.name));
+      }
+    } catch { }
+    return files;
+  };
+  for (const en of entries) {
+    if (!en.isDirectory() || en.name.startsWith('.') || SKIP.has(en.name)) continue;
+    const full = path.join(dir, en.name);
+    const count = countImages(full, 1);
+    if (!count) continue;
+    // 二级子文件夹 → 子分类；直属图片 → 主分类
+    const subs = [];
+    let subEntries = [];
+    try { subEntries = fs.readdirSync(full, { withFileTypes: true }); } catch { }
+    for (const se of subEntries) {
+      if (!se.isDirectory() || se.name.startsWith('.') || SKIP.has(se.name)) continue;
+      const sc = countImages(path.join(full, se.name), 2);
+      if (sc) subs.push({ name: se.name, count: sc, abs: path.join(full, se.name) });
+    }
+    out.groups.push({ name: en.name, count, abs: full, subs, directFiles: listFiles(full).length });
+    out.total += count;
+  }
+  // 根目录散落的图片 → 待分类
+  out.loose = listFiles(dir).length;
+  out.total += out.loose;
+  return out;
+});
+
+/* 按扫描结果接入：切换库目录 → 文件夹名 = 分类、二级文件夹 = 子分类，导入选中的部分 */
+ipcMain.handle('lib:attach-scan', async (e, { root, groups }) => {
+  const sender = e.sender;
+  await store.setRoot(root, { migrate: false });
+  let added = 0, dup = 0, failed = 0, total = 0;
+  const acc = (p) => { added += p.added || 0; dup += p.dup || 0; failed += p.failed || 0; };
+  const looseGroup = groups.find(g => g.loose);
+  for (const g of groups) {
+    if (g.loose) continue;
+    if ((g.subs || []).length) {
+      // 有子文件夹：直属图片进主分类，子文件夹各成子分类
+      const direct = [];
+      try {
+        for (const en of fs.readdirSync(g.abs, { withFileTypes: true })) {
+          if (en.isFile() && IMAGE_EXT.has(path.extname(en.name).toLowerCase())) direct.push(path.join(g.abs, en.name));
+        }
+      } catch { }
+      if (direct.length) {
+        acc(await store.importPaths(direct, (p) => {
+          if (!sender.isDestroyed()) sender.send('import:progress', { done: total + p.done, total: total + (p.total || 0), added: added });
+        }, { category: g.name }));
+      }
+      for (const s of g.subs) {
+        acc(await store.importPaths([s.abs], (p) => {
+          if (!sender.isDestroyed()) sender.send('import:progress', { done: total + p.done, total: total + (p.total || 0), added: added });
+        }, { category: g.name, subcategory: s.name }));
+      }
+    } else {
+      acc(await store.importPaths([g.abs], (p) => {
+        if (!sender.isDestroyed()) sender.send('import:progress', { done: total + p.done, total: total + (p.total || 0), added: added });
+      }, { category: g.name }));
+    }
+    total += g.count;
+  }
+  if (looseGroup) {
+    // 根目录散图 → 待分类（只导根目录直属文件，不递归）
+    const looseFiles = [];
+    try {
+      for (const en of fs.readdirSync(root, { withFileTypes: true })) {
+        if (en.isFile() && IMAGE_EXT.has(path.extname(en.name).toLowerCase())) looseFiles.push(path.join(root, en.name));
+      }
+    } catch { }
+    if (looseFiles.length) {
+      acc(await store.importPaths(looseFiles, (p) => {
+        if (!sender.isDestroyed()) sender.send('import:progress', { done: total + p.done, total: total + (p.total || 0), added: added });
+      }, { category: '待分类' }));
+    }
+  }
+  const payload = { root: store.root, stats: store.stats(), added, dup, failed, total };
+  if (!sender.isDestroyed()) sender.send('import:done', payload);
+  if (!sender.isDestroyed()) sender.send('library:switched', { root: store.root, stats: store.stats() });
   return payload;
 });
 

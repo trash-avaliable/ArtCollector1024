@@ -292,12 +292,13 @@ export const Card = React.memo(function Card({
 });
 
 export function BatchBar({
-  count, cats, mode, onCategory, onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll
+  count, cats, mode, onCategory, onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll, onTrim
 }: {
   count: number; cats: string[]; mode: 'normal' | 'trash';
   onCategory: (c: string) => void; onFav: () => void; onDragOut: () => void;
   onDelete: () => void; onClear: () => void;
   onRestore: () => void; onPurge: () => void; onPurgeAll: () => void;
+  onTrim: () => void;
 }) {
   if (!count) return null;
   return (
@@ -321,6 +322,7 @@ export function BatchBar({
           />
           <button onClick={onFav}>收藏</button>
           <button onClick={onDragOut}>拖出</button>
+          <button onClick={onTrim} title="自动检测并裁掉图片四周的白边，原图文件不动">裁白边</button>
           <button className="danger" onClick={onDelete}>删除</button>
         </>
       )}

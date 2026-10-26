@@ -4,7 +4,7 @@ import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
-import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type Sort, type Stats, type Toast, type Tree, type View } from './types';
+import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View } from './types';
 
 const idsOf = (s: Set<string>): string[] => {
   const out: string[] = [];
@@ -52,6 +52,7 @@ export default function App() {
   const [confirmCat, setConfirmCat] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const [bridge, setBridge] = useState<{ port: number; token: string; extDir: string } | null>(null);
+  const [scan, setScan] = useState<{ root: string; result: ScanResult | null; picked: Set<string>; loose: boolean } | null>(null);
 
   useEffect(() => {
     if (!settings) return;
@@ -428,6 +429,63 @@ export default function App() {
     setToast({ msg: migrate ? '已迁移到新目录' : '已切换库目录' });
   };
 
+  /* ---------- 扫描接入：换目录时把新目录里的图片按文件夹接进库 ---------- */
+  const startScan = async (root: string) => {
+    setAskRoot(null);
+    setScan({ root, result: null, picked: new Set(), loose: false });
+    const r = await window.api.lib.scanRoot(root);
+    setScan(prev => prev && prev.root === root
+      ? { ...prev, result: r, picked: new Set(r.groups.map(g => g.name)), loose: r.loose > 0 }
+      : prev);
+  };
+
+  const runAttach = async () => {
+    if (!scan?.result) return;
+    const pickedGroups: ScanGroup[] = scan.result.groups.filter(g => scan.picked.has(g.name));
+    const loose = scan.loose && scan.result.loose > 0;
+    if (!pickedGroups.length && !loose) { setScan(null); return; }
+    setScan(null);
+    setBusy('正在切换并接入…');
+    try {
+      // 文件夹名 = 分类、二级文件夹 = 子分类：先补进分类树
+      const existing = new Map(tree);
+      let next: Tree = [...tree];
+      for (const g of pickedGroups) {
+        const subs = [...(existing.get(g.name)?.[1] || [])];
+        for (const s of g.subs) if (!subs.includes(s.name)) subs.push(s.name);
+        next = next.some(([c]) => c === g.name)
+          ? next.map(([c, ss]) => (c === g.name ? [c, subs] : [c, ss]))
+          : [...next, [g.name, subs]];
+      }
+      if (next !== tree) {
+        await window.api.lib.saveCats(next);
+        setTree(next);
+        setRailCats(prev => {
+          const add = next.map(([c]) => c).filter(c => !prev.includes(c));
+          return add.length ? [...prev, ...add] : prev;
+        });
+      }
+      const groups: any[] = pickedGroups.map(g => ({ name: g.name, count: g.count, abs: g.abs, subs: g.subs }));
+      if (loose) groups.push({ loose: true });
+      await window.api.lib.attachScan({ root: scan.root, groups });
+      await refresh();
+      setToast({ msg: `已接入 ${groups.length ? groups.length + ' 个文件夹' : ''}${loose ? (groups.length > 1 ? ' + ' : '') + '根目录散图' : ''}` });
+    } catch (err: any) {
+      setToast({ msg: '接入失败：' + (err?.message || err) });
+    }
+    setBusy('');
+  };
+
+  const doTrim = async () => {
+    const ids = idsOf(selectedIds);
+    setBusy('正在裁白边…');
+    const r = await window.api.lib.trimMany(ids);
+    setBusy('');
+    clearSel();
+    await refresh();
+    setToast({ msg: r.changed ? `已裁掉 ${r.changed} 张的白边（原图文件没动）` : '这几张没有可裁的白边' });
+  };
+
   const selected = items.find(i => i.id === selectedIds.values().next().value) || null;
   const lightboxItem = items.find(i => i.id === lightboxId) || null;
   const cats = tree.map(([c]) => c);
@@ -478,7 +536,6 @@ export default function App() {
           setDropCat={setDropCat}
           onDropOnCategory={onDropOnCategory}
           onDropOnSub={onDropOnSub}
-          onOpenRoot={() => window.api.lib.openRoot()}
           onAddCat={addCat}
           onRenameCat={renameCat}
           onDropCat={name => setConfirmCat(name)}
@@ -533,6 +590,7 @@ export default function App() {
             onRestore={() => doRestore(idsOf(selectedIds))}
             onPurge={() => setConfirmPurge({ ids: idsOf(selectedIds) })}
             onPurgeAll={() => setConfirmPurge({ ids: [], all: true })}
+            onTrim={doTrim}
           />
         </main>
 
@@ -664,7 +722,71 @@ export default function App() {
             <div className="mb">
               <button onClick={() => setAskRoot(null)}>取消</button>
               <button onClick={() => applyRoot(false)}>只切换</button>
+              <button onClick={() => startScan(askRoot)} title="扫描这个目录里的图片文件夹，按文件夹名建分类接入">
+                扫描并接入…
+              </button>
               <button className="primary" onClick={() => applyRoot(true)}>复制并切换</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scan && (
+        <div className="modal-veil" onClick={() => setScan(null)}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
+            <div className="mt">扫描并接入新目录</div>
+            <div className="mp" title={scan.root}>{scan.root}</div>
+            {!scan.result && <div className="mh">正在扫描这个目录里的图片…</div>}
+            {scan.result?.error && <div className="mh">{scan.result.error}</div>}
+            {scan.result && !scan.result.total && (
+              <div className="mh">这个目录下没找到图片文件（子目录最多往下看 3 层）。</div>
+            )}
+            {scan.result && scan.result.total > 0 && (
+              <>
+                <div className="mh">
+                  共找到 <b>{scan.result.total}</b> 张图。勾选要接入的文件夹，导入后<b>文件夹名 = 分类</b>、
+                  二级文件夹 = 子分类；重复图会自动跳过，原图留在原地不移动。
+                </div>
+                <div className="scanlist">
+                  {scan.result.groups.map(g => (
+                    <label key={g.name} className="scanrow">
+                      <input
+                        type="checkbox"
+                        checked={scan.picked.has(g.name)}
+                        onChange={() => setScan(prev => {
+                          if (!prev) return prev;
+                          const p = new Set(prev.picked);
+                          if (p.has(g.name)) p.delete(g.name); else p.add(g.name);
+                          return { ...prev, picked: p };
+                        })}
+                      />
+                      <span className="snm" title={g.abs}>{g.name}</span>
+                      <span className="ssubs">{g.subs.length ? `${g.subs.length} 个子文件夹` : ''}</span>
+                      <b className="scnt">{g.count} 张</b>
+                    </label>
+                  ))}
+                  {scan.result.loose > 0 && (
+                    <label className="scanrow">
+                      <input
+                        type="checkbox"
+                        checked={scan.loose}
+                        onChange={() => setScan(prev => prev ? { ...prev, loose: !prev.loose } : prev)}
+                      />
+                      <span className="snm">（根目录散落的图片）</span>
+                      <span className="ssubs" />
+                      <b className="scnt">{scan.result.loose} 张</b>
+                    </label>
+                  )}
+                </div>
+              </>
+            )}
+            <div className="mb">
+              <button onClick={() => setScan(null)}>取消</button>
+              <button
+                className="primary"
+                disabled={!scan.result || (scan.result.total === 0) || (!scan.picked.size && !scan.loose)}
+                onClick={runAttach}
+              >接入所选</button>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -82,6 +82,12 @@ function openDatabase(root) {
   // v2 -> v3：软删除。deleted_at > 0 即在回收站，文件仍在盘上，可恢复
   if (!cols.includes('deleted_at')) {
     db.exec("ALTER TABLE assets ADD COLUMN deleted_at INTEGER NOT NULL DEFAULT 0");
+  }
+  // v3 -> v4：白边裁剪。四边各裁掉多少像素，-1 = 未检测 / 无白边
+  for (const c of ['crop_l', 'crop_t', 'crop_r', 'crop_b']) {
+    if (!cols.includes(c)) {
+      db.exec(`ALTER TABLE assets ADD COLUMN ${c} INTEGER NOT NULL DEFAULT -1`);
+    }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_assets_live ON assets(deleted_at)');
 

@@ -4,6 +4,14 @@ export type Item = {
   name: string;
   w: number;
   h: number;
+  /** 原始画布尺寸（w/h 是裁掉白边后的内容尺寸） */
+  cw?: number;
+  ch?: number;
+  cropL?: number;
+  cropT?: number;
+  cropR?: number;
+  cropB?: number;
+  trimmed?: boolean;
   size: number;
   addedAt: number;
   usedAt: number;
@@ -19,6 +27,18 @@ export type Item = {
   deletedAt?: number;
   simScore?: number;
 };
+
+export type ScanGroup = {
+  name: string;
+  count: number;
+  abs: string;
+  subs: { name: string; count: number; abs: string }[];
+  directFiles: number;
+};
+export type ScanResult = { groups: ScanGroup[]; loose: number; total: number; error: string };
+export type AttachGroup =
+  | { name: string; count: number; abs: string; subs: { name: string; count: number; abs: string }[] }
+  | { loose: true };
 
 export type Stats = {
   total: number;
@@ -89,6 +109,9 @@ declare global {
         openRoot(): Promise<void>;
         pickRoot(): Promise<string | null>;
         applyRoot(p: { root: string; migrate: boolean }): Promise<{ root: string; stats: Stats }>;
+        scanRoot(dir: string): Promise<ScanResult>;
+        attachScan(p: { root: string; groups: AttachGroup[] }): Promise<any>;
+        trimMany(ids: string[]): Promise<{ n: number; changed: number }>;
         rename(id: string, name: string): Promise<{ item?: Item; error?: string }>;
         getPrefs(): Promise<Prefs>;
         setPrefs(patch: Partial<Prefs>): Promise<Prefs>;

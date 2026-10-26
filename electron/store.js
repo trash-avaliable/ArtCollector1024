@@ -20,15 +20,71 @@ function makeImageOps() {
       const pixels = small.toBitmap ? small.toBitmap() : small.getBitmap();
       return { width, height, pixels, pw: size.width, ph: size.height };
     },
-    makeThumb(buf, dest) {
-      const img = nativeImage.createFromBuffer(buf);
+    makeThumb(buf, dest, crop) {
+      let img = nativeImage.createFromBuffer(buf);
       if (img.isEmpty()) return false;
+      if (crop) {
+        const { width, height } = img.getSize();
+        const x = Math.max(0, Math.min(crop.left || 0, width - 1));
+        const y = Math.max(0, Math.min(crop.top || 0, height - 1));
+        const w = Math.max(1, Math.min(crop.width || width, width - x));
+        const h = Math.max(1, Math.min(crop.height || height, height - y));
+        img = img.crop({ x, y, width: w, height: h });
+        if (img.isEmpty()) return false;
+      }
       const tw = Math.min(720, Math.max(240, img.getSize().width));
       const thumb = img.resize({ width: tw, quality: 'good' });
       const jpg = thumb.toJPEG(82);
       if (!jpg || !jpg.length) return false;
       fs.writeFileSync(dest, jpg);
       return true;
+    },
+    /**
+     * 检测四周的纯色白边（微信/截图工具常把白底烤进图里）。
+     * 返回 { left, top, right, bottom, width, height }（width/height 是裁完的内容尺寸），无白边返回 null。
+     */
+    detectTrim(buf) {
+      let img;
+      try { img = nativeImage.createFromBuffer(buf); } catch { return null; }
+      if (img.isEmpty()) return null;
+      const { width: W, height: H } = img.getSize();
+      if (!W || !H) return null;
+      const bmp = img.toBitmap ? img.toBitmap() : img.getBitmap();
+      const stride = bmp.length / H;
+      if (stride < W * 4) return null;
+      const WHITE = 232;           // 低于该值算"有内容"（给 JPEG 噪声留容差）
+      const TOLERANCE = 0.004;     // 每行/列允许 ≤0.4% 的杂点（描边、压缩伪影）
+      const step = Math.max(1, Math.floor(Math.max(W, H) / 512));  // 长边最多采样 512 个点
+      const isBlankRow = (y) => {
+        let bad = 0, n = 0;
+        for (let x = 0; x < W; x += step) {
+          const i = y * stride + x * 4;
+          const mn = Math.min(bmp[i + 2], bmp[i + 1], bmp[i]);
+          if (mn < WHITE) bad++;
+          n++;
+        }
+        return bad / Math.max(1, n) <= TOLERANCE;
+      };
+      const isBlankCol = (x) => {
+        let bad = 0, n = 0;
+        for (let y = 0; y < H; y += step) {
+          const i = y * stride + x * 4;
+          const mn = Math.min(bmp[i + 2], bmp[i + 1], bmp[i]);
+          if (mn < WHITE) bad++;
+          n++;
+        }
+        return bad / Math.max(1, n) <= TOLERANCE;
+      };
+      let top = 0, bottom = H - 1, left = 0, right = W - 1;
+      while (top < bottom && isBlankRow(top)) top++;
+      while (bottom > top && isBlankRow(bottom)) bottom--;
+      while (left < right && isBlankCol(left)) left++;
+      while (right > left && isBlankCol(right)) right--;
+      const cw = right - left + 1, ch = bottom - top + 1;
+      // 内容占比太高（没多少白边）、裁完太小（整图近白）都不裁
+      if (cw * ch >= W * H * 0.975) return null;
+      if (cw < 48 || ch < 48) return null;
+      return { left, top, right: W - right - 1, bottom: H - bottom - 1, width: cw, height: ch };
     }
   };
 }
@@ -58,9 +114,10 @@ class Store {
   async init() {
     this.readConfig();
     this.root = process.env.RC_LIB || this.cfg.libraryRoot || path.join(app.getPath('pictures'), 'RefCollector');
-    await fsp.mkdir(this.root, { recursive: true });
-    await fsp.mkdir(path.join(this.root, 'files'), { recursive: true });
-    await fsp.mkdir(path.join(this.root, 'thumbs'), { recursive: true });
+    // 全程同步：切库期间 tools 不能出现 null 窗口（renderer 的并发 invoke 会撞上）
+    fs.mkdirSync(this.root, { recursive: true });
+    fs.mkdirSync(path.join(this.root, 'files'), { recursive: true });
+    fs.mkdirSync(path.join(this.root, 'thumbs'), { recursive: true });
 
     this.close();
     const { db } = openDatabase(this.root);
@@ -98,8 +155,8 @@ class Store {
     this.root = newRoot;
     this.cfg.libraryRoot = newRoot;
     this.writeConfig();
-    await fsp.mkdir(path.join(newRoot, 'files'), { recursive: true });
-    await fsp.mkdir(path.join(newRoot, 'thumbs'), { recursive: true });
+    fs.mkdirSync(path.join(newRoot, 'files'), { recursive: true });
+    fs.mkdirSync(path.join(newRoot, 'thumbs'), { recursive: true });
     return this.init();
   }
 
@@ -180,6 +237,7 @@ class Store {
   resolveThumb(sha) { return this.tools.resolveThumb(sha); }
 
   backfillPalettes(opts) { return this.tools.backfillPalettes(opts); }
+  trimItems(ids, onProgress) { return this.tools.trimItems(ids, onProgress); }
 }
 
-module.exports = { store: new Store(), TREE, IMAGE_EXT };
+module.exports = { store: new Store(), TREE, IMAGE_EXT, makeImageOps };

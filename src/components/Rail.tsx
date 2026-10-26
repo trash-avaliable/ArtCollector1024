@@ -21,7 +21,7 @@ type DragRef = { kind: 'view' | 'cat'; key: string };
 export function Rail({
   view, setView, stats, tree, counts, category, setCategory, sub, setSub,
   railViews, railCats, onReorder, dropCat, setDropCat, onDropOnCategory, onDropOnSub,
-  onOpenRoot, onAddCat, onRenameCat, onDropCat
+  onAddCat, onRenameCat, onDropCat
 }: {
   view: View; setView: (v: View) => void; stats: Stats; tree: Tree;
   counts: Record<string, number>; category: string | null; setCategory: (c: string | null) => void;
@@ -31,7 +31,6 @@ export function Rail({
   dropCat: string | null; setDropCat: (c: string | null) => void;
   onDropOnCategory: (c: string) => void;
   onDropOnSub: (c: string, s: string) => void;
-  onOpenRoot: () => void;
   onAddCat: (name: string) => void;
   onRenameCat: (from: string, to: string) => void;
   onDropCat: (name: string) => void;
@@ -244,13 +243,6 @@ export function Rail({
             </div>
           );
         })}
-      </div>
-
-      <div className="railfoot">
-        <button className="railbtn" onClick={onOpenRoot} title="在资源管理器中打开库目录">
-          <Ico d="M3 7h7l2 2h9v10H3z" />
-          <span>打开库目录</span>
-        </button>
       </div>
     </nav>
   );
