@@ -853,3 +853,34 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
   .card { opacity: 1 !important; transform: none !important; }
   .scan { display: none; }
 }
+
+/* ================= P2：画板 / BOARDS ================= */
+
+/* 画板分区：贴在分类下方，内容多时自己滚，最多占左栏 42%，最矮留 64px */
+.boards {
+  flex: 0 1 auto; min-height: 64px; max-height: 42%; overflow-y: auto;
+  padding-bottom: 8px; -webkit-app-region: no-drag;
+}
+.boards::-webkit-scrollbar { width: 6px; }
+.boards::-webkit-scrollbar-thumb { background: var(--line-2); }
+
+/* 画板行复用 .cat 的外观：去掉 12px 箭头列，名字前加一个小方块当「板」记号 */
+.cat.ws { grid-template-columns: 1fr auto auto; }
+.cat.ws .nm::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 7px;
+  background: var(--muted-3); vertical-align: 1px;
+  transition: background var(--direct) var(--ease), box-shadow var(--direct) var(--ease);
+}
+.cat.ws.on .nm::before, .cat.ws.drop .nm::before {
+  background: var(--signal); box-shadow: 0 0 0 2px rgba(255, 250, 0, .22);
+}
+.ws-none { padding: 2px 14px 4px; font-size: 11px; letter-spacing: .04em; color: var(--muted-3); }
+
+/* 左栏分区标题里的 ＋ 按钮要能点：.rail 整体是 app-region: drag，子元素默认跟着不响应鼠标 */
+.raillbl { -webkit-app-region: no-drag; }
+
+/* 行内改名输入框铺满整行（12px 首列会把独占一行的输入框挤成一条缝） */
+.catrename { grid-column: 1 / -1; }
+
+/* 检查器：加入 / 移出画板两个下拉并排（复用 .cat2 栅格） */
+.wsops { margin-top: 8px; }

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { fmtDate, fmtSize, type ColorHit, type Item, type Stats, type Tree } from '../types';
+import { fmtDate, fmtSize, type ColorHit, type Item, type Stats, type Tree, type Workset } from '../types';
 import { Select } from './Select';
 
 export function Dock({
-  stats, count, label, selected, cats, tree, busy, editSignal,
+  stats, count, label, selected, cats, tree, busy, editSignal, worksets,
   onFav, onCopy, onReveal, onRemove, onCategory, onSubCategory, onDragOut, onRename,
-  onTags, onColorClick, onSimilar, onPin
+  onTags, onColorClick, onSimilar, onPin, onAddToWorkset, onRemoveFromWorkset
 }: {
   stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; tree: Tree; busy: string;
-  editSignal: number;
+  editSignal: number; worksets: Workset[];
   onFav: (id: string) => void; onCopy: (id: string) => void; onReveal: (id: string) => void;
   onRemove: (id: string) => void; onCategory: (id: string, cat: string) => void;
   onSubCategory: (id: string, cat: string, sub: string) => void;
@@ -17,12 +17,15 @@ export function Dock({
   onColorClick: (hex: string) => void;
   onSimilar: (id: string) => void;
   onPin: (id: string) => void;
+  onAddToWorkset: (id: string, wsId: string) => void;
+  onRemoveFromWorkset: (id: string, wsId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [palette, setPalette] = useState<ColorHit[]>([]);
   const [tagDraft, setTagDraft] = useState('');
+  const [assetWs, setAssetWs] = useState<Workset[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const stem = (name: string) => {
@@ -38,6 +41,16 @@ export function Dock({
     window.api.lib.colors(selected.id).then(c => { if (alive) setPalette(c || []); }).catch(() => { });
     return () => { alive = false; };
   }, [selected?.id]);
+
+  // 这张图在哪些画板里：画板列表一变（加/删/改）就跟着刷
+  useEffect(() => {
+    let alive = true;
+    if (!selected) { setAssetWs([]); return; }
+    window.api.workset.forAsset(selected.id)
+      .then(list => { if (alive) setAssetWs(list || []); })
+      .catch(() => { });
+    return () => { alive = false; };
+  }, [selected?.id, worksets]);
 
   useEffect(() => {
     if (editSignal > 0 && selected) { setDraft(stem(selected.name)); setEditing(true); }
@@ -159,6 +172,38 @@ export function Dock({
                   placeholder="+ 标签"
                   onChange={e => setTagDraft(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') addTag(); }}
+                />
+              </div>
+            </div>
+
+            <div className="sect">
+              <div className="sh"><span>BOARDS / 画板</span><em>跨分类组图</em></div>
+              {assetWs.length ? (
+                <div className="taglist">
+                  {assetWs.map(w => (
+                    <span className="tg" key={w.id} title={`已加入画板「${w.name}」`}>
+                      {w.name}
+                      <button title="移出该画板（图片保留）" onClick={() => onRemoveFromWorkset(selected.id, w.id)}>×</button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="dim">还没加入任何画板</div>
+              )}
+              <div className="cat2 wsops">
+                <Select
+                  value={null}
+                  placeholder="加入画板…"
+                  options={worksets.map(w => ({ value: w.id, label: w.name, hint: String(w.count || '') }))}
+                  onChange={v => onAddToWorkset(selected.id, v)}
+                  size="sm"
+                />
+                <Select
+                  value={null}
+                  placeholder="移出画板…"
+                  options={assetWs.map(w => ({ value: w.id, label: w.name }))}
+                  onChange={v => onRemoveFromWorkset(selected.id, v)}
+                  size="sm"
                 />
               </div>
             </div>

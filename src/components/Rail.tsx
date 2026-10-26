@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent } from 'react';
-import type { Stats, Tree, View } from '../types';
+import type { Stats, Tree, View, Workset } from '../types';
 
 const RAIL_MIME = 'application/x-rail';
 
@@ -21,7 +21,8 @@ type DragRef = { kind: 'view' | 'cat'; key: string };
 export function Rail({
   view, setView, stats, tree, counts, category, setCategory, sub, setSub,
   railViews, railCats, onReorder, dropCat, setDropCat, onDropOnCategory, onDropOnSub,
-  onAddCat, onRenameCat, onDropCat
+  onAddCat, onRenameCat, onDropCat,
+  worksets, wsFilter, onPickWorkset, onAddWorkset, onRenameWorkset, onDeleteWorkset, onDropOnWorkset
 }: {
   view: View; setView: (v: View) => void; stats: Stats; tree: Tree;
   counts: Record<string, number>; category: string | null; setCategory: (c: string | null) => void;
@@ -34,6 +35,12 @@ export function Rail({
   onAddCat: (name: string) => void;
   onRenameCat: (from: string, to: string) => void;
   onDropCat: (name: string) => void;
+  worksets: Workset[]; wsFilter: string | null;
+  onPickWorkset: (id: string | null) => void;
+  onAddWorkset: (name: string) => void;
+  onRenameWorkset: (id: string, name: string) => void;
+  onDeleteWorkset: (id: string) => void;
+  onDropOnWorkset: (id: string) => void;
 }) {
   const dragRef = useRef<DragRef | null>(null);
   const [drag, setDrag] = useState<DragRef | null>(null);
@@ -43,6 +50,11 @@ export function Rail({
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [wsAdding, setWsAdding] = useState(false);
+  const [wsNewName, setWsNewName] = useState('');
+  const [editWs, setEditWs] = useState<string | null>(null);
+  const [wsDraft, setWsDraft] = useState('');
+  const [dropWs, setDropWs] = useState<string | null>(null);
 
   const views = (railViews.length ? railViews : NAV.map(n => n.key)).filter(k => k !== 'trash');
   const cats = railCats.length ? railCats : tree.map(([c]) => c);
@@ -109,6 +121,13 @@ export function Rail({
     if (v) onAddCat(v);
     setNewName('');
     setAdding(false);
+  };
+
+  const commitWsAdd = () => {
+    const v = wsNewName.trim();
+    if (v) onAddWorkset(v);
+    setWsNewName('');
+    setWsAdding(false);
   };
 
   return (
@@ -243,6 +262,83 @@ export function Rail({
             </div>
           );
         })}
+      </div>
+
+      <div className="raildiv" />
+      <div className="raillbl">
+        <span>BOARDS / 画板</span>
+        <button className="railadd" onClick={() => setWsAdding(a => !a)} title="新建画板（跨分类临时组图）">＋</button>
+      </div>
+
+      {wsAdding && (
+        <div className="catadd">
+          <input
+            autoFocus
+            value={wsNewName}
+            placeholder="新画板名称"
+            onChange={e => setWsNewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitWsAdd();
+              if (e.key === 'Escape') { setWsAdding(false); setWsNewName(''); }
+            }}
+            onBlur={commitWsAdd}
+          />
+        </div>
+      )}
+
+      <div className="boards">
+        {worksets.map(w => (
+          <div
+            key={w.id}
+            className={'cat ws' + (wsFilter === w.id ? ' on' : '') + (dropWs === w.id ? ' drop' : '')}
+            onClick={() => { if (editWs !== w.id) onPickWorkset(wsFilter === w.id ? null : w.id); }}
+            title={`画板「${w.name}」· ${w.count} 张 · 把图拖到这里加入`}
+            onDragOver={e => {
+              if (Array.from(e.dataTransfer.types).includes('text/plain')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (dropWs !== w.id) setDropWs(w.id);
+              }
+            }}
+            onDragLeave={() => setDropWs(d => (d === w.id ? null : d))}
+            onDrop={e => {
+              if (Array.from(e.dataTransfer.types).includes('text/plain')) {
+                e.preventDefault();
+                e.stopPropagation();
+                setDropWs(null);
+                onDropOnWorkset(w.id);
+              }
+            }}
+          >
+            {editWs === w.id ? (
+              <input
+                className="catrename"
+                autoFocus
+                value={wsDraft}
+                onClick={e => e.stopPropagation()}
+                onChange={e => setWsDraft(e.target.value)}
+                onKeyDown={e => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') { onRenameWorkset(w.id, wsDraft.trim() || w.name); setEditWs(null); }
+                  if (e.key === 'Escape') setEditWs(null);
+                }}
+                onBlur={() => setEditWs(null)}
+              />
+            ) : (
+              <>
+                <span className="nm">{w.name}</span>
+                <i className="cnt">{w.count || ''}</i>
+                <span className="cattools">
+                  <button title="改名" onClick={e => { e.stopPropagation(); setEditWs(w.id); setWsDraft(w.name); }}>✎</button>
+                  <button title="删除画板（不影响图片）" onClick={e => { e.stopPropagation(); onDeleteWorkset(w.id); }}>×</button>
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+        {!worksets.length && !wsAdding && (
+          <div className="ws-none">还没有画板，点上面 ＋ 新建</div>
+        )}
       </div>
     </nav>
   );

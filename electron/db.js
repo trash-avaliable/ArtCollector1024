@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const SCHEMA_VERSION = 4;
+// v5 由并行分支加 clip 列（合并时对齐）；本分支 v6 加画板两张表
+const SCHEMA_VERSION = 6;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -57,6 +58,21 @@ CREATE TABLE IF NOT EXISTS asset_colors (
   PRIMARY KEY (asset_id, idx)
 );
 CREATE INDEX IF NOT EXISTS idx_colors_lab ON asset_colors(l, a, b);
+
+-- 画板（工作集）：跨分类的横向组织，一张图可进多个画板；删画板不动图片
+CREATE TABLE IF NOT EXISTS worksets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS workset_items (
+  workset_id TEXT NOT NULL REFERENCES worksets(id) ON DELETE CASCADE,
+  asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (workset_id, asset_id)
+);
+CREATE INDEX IF NOT EXISTS idx_workset_items_asset ON workset_items(asset_id);
 
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,

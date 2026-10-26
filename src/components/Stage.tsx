@@ -1,6 +1,6 @@
 import React, { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { thumbUrl, type Item, type Sort } from '../types';
+import { thumbUrl, type Item, type Sort, type Workset } from '../types';
 import { Select } from './Select';
 
 const SORTS = [
@@ -16,9 +16,10 @@ export const Toolbar = forwardRef<HTMLInputElement, {
   category: string | null; sub: string | null; cats: string[]; setCategory: (c: string | null) => void;
   colorFilter: string | null; onClearColor: () => void;
   simLabel?: string | null; onClearSim?: () => void;
+  worksetLabel?: string | null; onClearWorkset?: () => void;
   onImport: () => void; onImportTo: (cat: string) => void;
 }>(function Toolbar(p, ref) {
-  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, simLabel, onClearSim } = p;
+  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, simLabel, onClearSim, worksetLabel, onClearWorkset } = p;
   const [menu, setMenu] = useState(false);
   const mref = useRef<HTMLDivElement>(null);
 
@@ -51,6 +52,11 @@ export const Toolbar = forwardRef<HTMLInputElement, {
         {simLabel && (
           <button className="fchip sim" onClick={onClearSim} title="退出相似图">
             相似于：{simLabel} <i>×</i>
+          </button>
+        )}
+        {worksetLabel && (
+          <button className="fchip ws" onClick={onClearWorkset} title="退出画板视图">
+            画板：{worksetLabel} <i>×</i>
           </button>
         )}
         {category && (
@@ -292,10 +298,13 @@ export const Card = React.memo(function Card({
 });
 
 export function BatchBar({
-  count, cats, mode, onCategory, onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll, onTrim
+  count, cats, worksets, mode, wsActive,
+  onCategory, onAddToWorkset, onRemoveFromWorkset,
+  onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll, onTrim
 }: {
-  count: number; cats: string[]; mode: 'normal' | 'trash';
-  onCategory: (c: string) => void; onFav: () => void; onDragOut: () => void;
+  count: number; cats: string[]; worksets: Workset[]; mode: 'normal' | 'trash'; wsActive: boolean;
+  onCategory: (c: string) => void; onAddToWorkset: (wsId: string) => void; onRemoveFromWorkset: () => void;
+  onFav: () => void; onDragOut: () => void;
   onDelete: () => void; onClear: () => void;
   onRestore: () => void; onPurge: () => void; onPurgeAll: () => void;
   onTrim: () => void;
@@ -320,6 +329,14 @@ export function BatchBar({
             onChange={onCategory}
             size="sm"
           />
+          <Select
+            value={null}
+            placeholder="加入画板…"
+            options={worksets.map(w => ({ value: w.id, label: w.name, hint: String(w.count || '') }))}
+            onChange={onAddToWorkset}
+            size="sm"
+          />
+          {wsActive && <button onClick={onRemoveFromWorkset} title="把选中的图从当前画板移出（图片保留在库里）">移出画板</button>}
           <button onClick={onFav}>收藏</button>
           <button onClick={onDragOut}>拖出</button>
           <button onClick={onTrim} title="自动检测并裁掉图片四周的白边，原图文件不动">裁白边</button>

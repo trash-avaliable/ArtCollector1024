@@ -64,6 +64,16 @@ contextBridge.exposeInMainWorld('api', {
     setOpacity: (v) => ipcRenderer.send('pin:opacity', v),
     setIgnore: (v) => ipcRenderer.send('pin:ignore', v)
   },
+  workset: {
+    list: () => ipcRenderer.invoke('workset:list'),
+    create: (name) => ipcRenderer.invoke('workset:create', name),
+    rename: (id, name) => ipcRenderer.invoke('workset:rename', { id, name }),
+    delete: (id) => ipcRenderer.invoke('workset:delete', id),
+    addItems: (id, ids) => ipcRenderer.invoke('workset:add-items', { id, ids }),
+    removeItems: (id, ids) => ipcRenderer.invoke('workset:remove-items', { id, ids }),
+    items: (id) => ipcRenderer.invoke('workset:items', id),
+    forAsset: (assetId) => ipcRenderer.invoke('workset:for-asset', assetId)
+  },
   // 置顶窗自己的极简入口（pin.html 只用到这两个）
   pinWin: {
     close: () => ipcRenderer.send('pin:close')

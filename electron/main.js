@@ -391,16 +391,16 @@ ipcMain.handle('lib:info', () => ({
   tree: store.getCats() || TREE
 }));
 
-ipcMain.handle('lib:list', (e, opts) => {
-  const items = store.list(opts || {});
-  return items.map(it => ({
-    id: it.id, sha: it.sha, name: it.name, w: it.w, h: it.h, size: it.size,
-    addedAt: it.addedAt, usedAt: it.usedAt, category: it.category,
-    subcategory: it.subcategory, tags: it.tags, source: it.source,
-    sourceUrl: it.sourceUrl, favorite: it.favorite, ext: it.ext,
-    hasThumb: it.hasThumb, deletedAt: it.deletedAt, simScore: it.simScore
-  }));
+/** toItem 的结果裁成 renderer 需要的普通对象（lib:list 与画板共用，保证字段一致） */
+const plainItem = (it) => ({
+  id: it.id, sha: it.sha, name: it.name, w: it.w, h: it.h, size: it.size,
+  addedAt: it.addedAt, usedAt: it.usedAt, category: it.category,
+  subcategory: it.subcategory, tags: it.tags, source: it.source,
+  sourceUrl: it.sourceUrl, favorite: it.favorite, ext: it.ext,
+  hasThumb: it.hasThumb, deletedAt: it.deletedAt, simScore: it.simScore
 });
+
+ipcMain.handle('lib:list', (e, opts) => store.list(opts || {}).map(plainItem));
 
 ipcMain.handle('lib:import-dialog', async (e, opts) => {
   const w = BrowserWindow.fromWebContents(e.sender);
@@ -440,6 +440,16 @@ ipcMain.handle('lib:cats', () => store.getCats() || TREE);
 ipcMain.handle('lib:save-cats', (e, list) => store.setCats(list));
 ipcMain.handle('lib:rename-cat', (e, { from, to }) => store.renameCategory(from, to));
 ipcMain.handle('lib:drop-cat', (e, name) => store.dropCategory(name));
+
+/* ---- 画板（工作集）---- */
+ipcMain.handle('workset:list', () => store.worksets());
+ipcMain.handle('workset:create', (e, name) => store.createWorkset(name));
+ipcMain.handle('workset:rename', (e, { id, name }) => store.renameWorkset(id, name));
+ipcMain.handle('workset:delete', (e, id) => store.deleteWorkset(id));
+ipcMain.handle('workset:add-items', (e, { id, ids }) => store.addWorksetItems(id, ids));
+ipcMain.handle('workset:remove-items', (e, { id, ids }) => store.removeWorksetItems(id, ids));
+ipcMain.handle('workset:items', (e, id) => store.worksetItems(id).map(plainItem));
+ipcMain.handle('workset:for-asset', (e, assetId) => store.worksetsFor(assetId));
 
 /* ---- 多选批量 ---- */
 ipcMain.handle('lib:remove-many', (e, ids) => ({ n: store.removeMany(ids), stats: store.stats() }));

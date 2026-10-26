@@ -55,6 +55,9 @@ export type View = 'all' | 'inbox' | 'fav' | 'recent' | 'trash';
 
 export type Tree = [string, string[]][];
 
+/** 画板（工作集）：跨分类的多对多组织，count 只数没进回收站的成员 */
+export type Workset = { id: string; name: string; createdAt: number; count: number };
+
 export type PaletteColor = { hex: string; l: number; a: number; b: number; pct: number };
 
 export type Toast = { msg: string; undo?: () => void } | null;
@@ -126,6 +129,16 @@ declare global {
         close(): Promise<void>;
         setOpacity(v: number): void;
         setIgnore(v: boolean): void;
+      };
+      workset: {
+        list(): Promise<Workset[]>;
+        create(name: string): Promise<Workset | { error: string }>;
+        rename(id: string, name: string): Promise<{ id: string; name: string } | { error: string }>;
+        delete(id: string): Promise<{ ok: boolean; error?: string }>;
+        addItems(id: string, ids: string[]): Promise<{ added: number; error?: string }>;
+        removeItems(id: string, ids: string[]): Promise<{ removed: number; error?: string }>;
+        items(id: string): Promise<Item[]>;
+        forAsset(assetId: string): Promise<Workset[]>;
       };
       bridge: {
         info(): Promise<{ port: number; token: string; extDir: string }>;

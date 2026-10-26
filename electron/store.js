@@ -238,6 +238,16 @@ class Store {
 
   backfillPalettes(opts) { return this.tools.backfillPalettes(opts); }
   trimItems(ids, onProgress) { return this.tools.trimItems(ids, onProgress); }
+
+  /* ---- 画板（工作集）---- */
+  worksets() { return this.tools.worksets(); }
+  createWorkset(name) { return this.tools.createWorkset(name); }
+  renameWorkset(id, name) { return this.tools.renameWorkset(id, name); }
+  deleteWorkset(id) { return this.tools.deleteWorkset(id); }
+  addWorksetItems(id, ids) { return this.tools.addWorksetItems(id, ids); }
+  removeWorksetItems(id, ids) { return this.tools.removeWorksetItems(id, ids); }
+  worksetItems(id) { return this.tools.worksetItems(id); }
+  worksetsFor(assetId) { return this.tools.worksetsFor(assetId); }
 }
 
 module.exports = { store: new Store(), TREE, IMAGE_EXT, makeImageOps };

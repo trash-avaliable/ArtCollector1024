@@ -22,3 +22,7 @@ AppsRefCollector/
 shot-*.png
 crop-*.png
 installed.png
+
+# smoke test artifacts
+.rc-test-lib/
+.rc-test-img/

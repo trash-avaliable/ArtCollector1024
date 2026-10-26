@@ -168,7 +168,33 @@ class LibraryTools {
       setFav: db.prepare('UPDATE assets SET favorite = ? WHERE id = ?'),
       setUsed: db.prepare('UPDATE assets SET used_at = ? WHERE id = ?'),
       del: db.prepare('DELETE FROM assets WHERE id = ?'),
-      backfill: db.prepare('SELECT * FROM assets WHERE palette_at = 0 LIMIT ?')
+      backfill: db.prepare('SELECT * FROM assets WHERE palette_at = 0 LIMIT ?'),
+      /* ---- 画板（工作集）---- */
+      wsList: db.prepare(`
+        SELECT w.id, w.name, w.created_at AS created_at,
+          (SELECT COUNT(*) FROM workset_items wi
+             JOIN assets a ON a.id = wi.asset_id AND a.deleted_at = 0
+            WHERE wi.workset_id = w.id) AS n
+        FROM worksets w
+        ORDER BY w.created_at DESC, w.rowid DESC`),
+      wsById: db.prepare('SELECT * FROM worksets WHERE id = ?'),
+      wsByName: db.prepare('SELECT * FROM worksets WHERE name = ?'),
+      wsInsert: db.prepare('INSERT INTO worksets (id, name, created_at) VALUES (?, ?, ?)'),
+      wsRename: db.prepare('UPDATE worksets SET name = ? WHERE id = ?'),
+      wsDelete: db.prepare('DELETE FROM worksets WHERE id = ?'),
+      wsAdd: db.prepare('INSERT OR IGNORE INTO workset_items (workset_id, asset_id, added_at) VALUES (?, ?, ?)'),
+      wsRemove: db.prepare('DELETE FROM workset_items WHERE workset_id = ? AND asset_id = ?'),
+      wsItems: db.prepare(`
+        SELECT a.* FROM workset_items wi
+          JOIN assets a ON a.id = wi.asset_id
+        WHERE wi.workset_id = ? AND a.deleted_at = 0
+        ORDER BY wi.added_at DESC`),
+      wsForAsset: db.prepare(`
+        SELECT w.id, w.name, w.created_at AS createdAt
+        FROM worksets w JOIN workset_items wi ON wi.workset_id = w.id
+        WHERE wi.asset_id = ?
+        ORDER BY wi.added_at DESC`),
+      liveById: db.prepare('SELECT id FROM assets WHERE id = ? AND deleted_at = 0')
     };
   }
 
@@ -802,6 +828,83 @@ class LibraryTools {
       colorScore: +h.score.toFixed(3),
       matched: h.matched
     }));
+  }
+
+  /* ---------- 画板（工作集）：多对多横向组织，只记关系，删板绝不动图片 ---------- */
+
+  /** 全部画板，带每板成员数（只数没进回收站的） */
+  worksets() {
+    return this.q.wsList.all().map((r) => ({
+      id: r.id, name: r.name, createdAt: r.created_at, count: r.n
+    }));
+  }
+
+  createWorkset(rawName) {
+    const name = String(rawName || '').trim().replace(/\s+/g, ' ');
+    if (!name) return { error: '画板名称不能为空' };
+    if (name.length > 60) return { error: '画板名称太长了（最多 60 字）' };
+    if (this.q.wsByName.get(name)) return { error: '已经有同名画板了' };
+    const row = { id: crypto.randomBytes(8).toString('hex'), name, createdAt: Date.now() };
+    this.q.wsInsert.run(row.id, row.name, row.createdAt);
+    return { id: row.id, name: row.name, createdAt: row.createdAt, count: 0 };
+  }
+
+  renameWorkset(id, rawName) {
+    const row = this.q.wsById.get(id);
+    if (!row) return { error: '画板不存在' };
+    const name = String(rawName || '').trim().replace(/\s+/g, ' ');
+    if (!name) return { error: '画板名称不能为空' };
+    if (name.length > 60) return { error: '画板名称太长了（最多 60 字）' };
+    const dup = this.q.wsByName.get(name);
+    if (dup && dup.id !== id) return { error: '已经有同名画板了' };
+    this.q.wsRename.run(name, id);
+    return { id, name };
+  }
+
+  /** 删画板：只删 worksets 行（CASCADE 清成员关系），assets 一概不碰 */
+  deleteWorkset(id) {
+    const row = this.q.wsById.get(id);
+    if (!row) return { ok: false, error: '画板不存在' };
+    this.q.wsDelete.run(id);
+    return { ok: true };
+  }
+
+  /** 加图进画板：INSERT OR IGNORE 幂等，重复加入不报错 */
+  addWorksetItems(id, assetIds) {
+    const ws = this.q.wsById.get(id);
+    if (!ws) return { added: 0, error: '画板不存在' };
+    let added = 0;
+    const now = Date.now();
+    this.tx(() => {
+      for (const aid of assetIds || []) {
+        if (!this.q.liveById.get(aid)) continue; // 不存在或已在回收站的图不进板
+        added += this.q.wsAdd.run(id, aid, now).changes || 0;
+      }
+    });
+    return { added };
+  }
+
+  removeWorksetItems(id, assetIds) {
+    const ws = this.q.wsById.get(id);
+    if (!ws) return { removed: 0, error: '画板不存在' };
+    let removed = 0;
+    this.tx(() => {
+      for (const aid of assetIds || []) removed += this.q.wsRemove.run(id, aid).changes || 0;
+    });
+    return { removed };
+  }
+
+  /** 画板成员：Item[]，复用 toItem，按加入时间倒序 */
+  worksetItems(id) {
+    if (!this.q.wsById.get(id)) return [];
+    const rows = this.q.wsItems.all(id);
+    const tags = this.tagsFor(rows.map((r) => r.id));
+    return rows.map((r) => this.toItem(r, tags.get(r.id) || []));
+  }
+
+  /** 一张图在哪些画板里 */
+  worksetsFor(assetId) {
+    return this.q.wsForAsset.all(assetId);
   }
 }
 

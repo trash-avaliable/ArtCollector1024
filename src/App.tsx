@@ -4,7 +4,7 @@ import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
-import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View } from './types';
+import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset } from './types';
 
 const idsOf = (s: Set<string>): string[] => {
   const out: string[] = [];
@@ -26,6 +26,8 @@ export default function App() {
   const [view, setView] = useState<View>('all');
   const [category, setCategory] = useState<string | null>(null);
   const [sub, setSub] = useState<string | null>(null);
+  const [worksets, setWorksets] = useState<Workset[]>([]);
+  const [wsFilter, setWsFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('new');
   const [colorFilter, setColorFilter] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function App() {
   const [confirmDel, setConfirmDel] = useState<string[] | null>(null);
   const [confirmPurge, setConfirmPurge] = useState<{ ids: string[]; all?: boolean } | null>(null);
   const [confirmCat, setConfirmCat] = useState<string | null>(null);
+  const [confirmWs, setConfirmWs] = useState<Workset | null>(null);
   const [settings, setSettings] = useState(false);
   const [bridge, setBridge] = useState<{ port: number; token: string; extDir: string } | null>(null);
   const [scan, setScan] = useState<{ root: string; result: ScanResult | null; picked: Set<string>; loose: boolean } | null>(null);
@@ -61,6 +64,10 @@ export default function App() {
 
   const searchRef = useRef<HTMLInputElement>(null);
   const fileOverTimer = useRef<any>(null);
+
+  const loadWorksets = useCallback(async () => {
+    try { setWorksets(await window.api.workset.list() || []); } catch { }
+  }, []);
 
   const refresh = useCallback(async (opts?: { view?: View; category?: string | null; sub?: string | null; query?: string; sort?: Sort }) => {
     const v = opts?.view ?? view;
@@ -75,13 +82,19 @@ export default function App() {
     } else if (colorFilter) {
       const list = await window.api.lib.searchColors({ colors: [colorFilter], threshold: 18, limit: 300, category: c });
       setItems(list);
+    } else if (wsFilter) {
+      // 画板视图：只看该板成员（main 侧已裁成与 lib:list 一致的字段）
+      const list = await window.api.workset.items(wsFilter);
+      setItems(list);
     } else {
       const list = await window.api.lib.list({ view: v, category: c, subcategory: s2, query: q, sort: s });
       setItems(list);
     }
     setCounts(cnt || {});
     setStats(st);
-  }, [view, category, sub, dq, sort, colorFilter, sim]);
+    // 画板计数跟着库存变动（删图会 CASCADE 掉成员关系）
+    await loadWorksets();
+  }, [view, category, sub, dq, sort, colorFilter, sim, wsFilter, loadWorksets]);
 
   const refreshRef = useRef(refresh);
   useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -119,7 +132,7 @@ export default function App() {
     return () => { off1(); off2(); off3(); off4(); off5(); off6(); };
   }, []);
 
-  useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim]);
+  useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim, wsFilter]);
 
   useEffect(() => {
     if (!tree.length) return;
@@ -151,7 +164,8 @@ export default function App() {
       if (e.key === 'Escape') {
         if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
         setLightboxId(null); setClip(null);
-        setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setSettings(false);
+        setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setConfirmWs(null); setSettings(false);
+        setWsFilter(null); // 画板视图也是一层过滤：Esc 逐层退出
       }
       if (e.key === 'F2' && selectedIds.size === 1 && !typing) { e.preventDefault(); setEditSignal(n => n + 1); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size && !typing) {
@@ -255,6 +269,75 @@ export default function App() {
     if (category === name) { setCategory(null); setSub(null); }
     await refresh();
     setToast({ msg: `已删除分类「${name}」，${n} 张图退回待分类` });
+  };
+
+  /* ---------- 画板（工作集）---------- */
+  /** 进/出画板视图：画板和分类是两套过滤，进画板时清掉竖向筛选 */
+  const selectBoard = (id: string | null) => {
+    setWsFilter(id);
+    setCategory(null);
+    setSub(null);
+    setSim(null);
+    setColorFilter(null);
+    clearSel();
+  };
+
+  const addBoard = async (name: string) => {
+    const r = await window.api.workset.create(name);
+    if ('error' in r) { setToast({ msg: r.error }); return; }
+    setWsFilter(r.id);
+    await refresh();
+    setToast({ msg: `已新建画板「${r.name}」，把图拖到左栏画板上即可加入` });
+  };
+
+  const renameBoard = async (id: string, name: string) => {
+    const r = await window.api.workset.rename(id, name);
+    if ('error' in r) { setToast({ msg: r.error }); return; }
+    await refresh();
+    setToast({ msg: `画板已改名为「${r.name}」` });
+  };
+
+  const deleteBoard = async (id: string) => {
+    const ws = worksets.find(w => w.id === id);
+    setConfirmWs(null);
+    const r = await window.api.workset.delete(id);
+    if (!r.ok) { setToast({ msg: r.error || '删除失败' }); return; }
+    if (wsFilter === id) setWsFilter(null);
+    await refresh();
+    setToast({ msg: `已删除画板「${ws?.name || ''}」，板里 ${ws?.count ?? 0} 张图都还在库里` });
+  };
+
+  /** 加图进画板（批量条 / 检查器 / 拖拽共用）：幂等，重复加入不报错 */
+  const addToBoard = async (ids: string[], wsId: string) => {
+    if (!ids.length || !wsId) return;
+    const ws = worksets.find(w => w.id === wsId);
+    const r = await window.api.workset.addItems(wsId, ids);
+    if (r.error) { setToast({ msg: r.error }); return; }
+    await refresh();
+    setToast({ msg: r.added ? `${r.added} 张已加入画板「${ws?.name || ''}」` : `选中的图都已经在「${ws?.name || ''}」里了` });
+  };
+
+  const removeFromBoard = async (ids: string[], wsId: string) => {
+    if (!ids.length || !wsId) return;
+    const ws = worksets.find(w => w.id === wsId);
+    const r = await window.api.workset.removeItems(wsId, ids);
+    if (r.error) { setToast({ msg: r.error }); return; }
+    clearSel();
+    await refresh();
+    setToast({ msg: `已从「${ws?.name || ''}」移出 ${r.removed} 张（图片还在库里）` });
+  };
+
+  /** 瀑布流卡片拖到左栏画板上 = 加入该画板 */
+  const onDropOnWorkset = async (wsId: string) => {
+    const id = draggingId;
+    setDraggingId(null);
+    if (!id) return;
+    if (!items.some(i => i.id === id && !i.deletedAt)) return;
+    const ws = worksets.find(w => w.id === wsId);
+    const r = await window.api.workset.addItems(wsId, [id]);
+    if (r.error) { setToast({ msg: r.error }); return; }
+    await refresh();
+    setToast({ msg: r.added ? `已加入画板「${ws?.name || ''}」` : `这张图已经在「${ws?.name || ''}」里了` });
   };
 
   /* ---------- 选择 ---------- */
@@ -499,10 +582,14 @@ export default function App() {
     if (n) setLightboxId(n.id);
   };
 
+  const wsName = useMemo(() => worksets.find(w => w.id === wsFilter)?.name || null, [worksets, wsFilter]);
+
   const crumb = useMemo(() => {
     const parts = ['库'];
     if (sim) {
       parts.push(`相似于「${sim.name}」`);
+    } else if (wsName) {
+      parts.push(`画板「${wsName}」`);
     } else {
       if (colorFilter) parts.push(`颜色 ${colorFilter}`);
       if (category) parts.push(sub ? `${category} / ${sub}` : category);
@@ -511,7 +598,7 @@ export default function App() {
     if (dq) parts.push(`搜索「${dq}」`);
     parts.push(`${items.length} 项`);
     return parts.join('  /  ');
-  }, [category, sub, view, dq, items.length, colorFilter, sim]);
+  }, [category, sub, view, dq, items.length, colorFilter, sim, wsName]);
 
   const fadeKey = `${view}|${category}|${sub}|${dq}|${sort}|${colorFilter}|${sim?.id || ''}`;
 
@@ -521,12 +608,12 @@ export default function App() {
       <div className="app" data-dock={selected ? 'open' : 'idle'}>
         <Rail
           view={view}
-          setView={v => { setView(v); setCategory(null); setSub(null); setSim(null); setColorFilter(null); clearSel(); }}
+          setView={v => { setView(v); setCategory(null); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
           stats={stats}
           tree={tree}
           counts={counts}
           category={category}
-          setCategory={c => { setCategory(c); setSub(null); setSim(null); clearSel(); }}
+          setCategory={c => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
           sub={sub}
           setSub={setSub}
           railViews={railViews}
@@ -539,6 +626,13 @@ export default function App() {
           onAddCat={addCat}
           onRenameCat={renameCat}
           onDropCat={name => setConfirmCat(name)}
+          worksets={worksets}
+          wsFilter={wsFilter}
+          onPickWorkset={selectBoard}
+          onAddWorkset={addBoard}
+          onRenameWorkset={renameBoard}
+          onDeleteWorkset={id => setConfirmWs(worksets.find(w => w.id === id) || null)}
+          onDropOnWorkset={onDropOnWorkset}
         />
 
         <main className="stage">
@@ -552,11 +646,13 @@ export default function App() {
             category={category}
             sub={sub}
             cats={cats}
-            setCategory={c => { setCategory(c); setSub(null); setSim(null); clearSel(); }}
+            setCategory={c => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
             colorFilter={colorFilter}
             onClearColor={() => setColorFilter(null)}
             simLabel={sim ? sim.name : null}
             onClearSim={() => setSim(null)}
+            worksetLabel={wsName}
+            onClearWorkset={() => selectBoard(null)}
             onImport={doImport}
             onImportTo={importTo}
           />
@@ -581,8 +677,12 @@ export default function App() {
           <BatchBar
             count={selectedIds.size}
             cats={cats}
+            worksets={worksets}
             mode={view === 'trash' ? 'trash' : 'normal'}
+            wsActive={!!wsFilter}
             onCategory={batchCategory}
+            onAddToWorkset={wsId => addToBoard(idsOf(selectedIds), wsId)}
+            onRemoveFromWorkset={() => wsFilter && removeFromBoard(idsOf(selectedIds), wsFilter)}
             onFav={batchFav}
             onDragOut={() => { const id = idsOf(selectedIds)[0]; if (id) window.api.lib.dragOut(id); }}
             onDelete={() => setConfirmDel(idsOf(selectedIds))}
@@ -597,12 +697,13 @@ export default function App() {
         <Dock
           stats={stats}
           count={items.length}
-          label={category ? `${category}${sub ? ' / ' + sub : ''} / FILTERED` : VIEW_LABEL[view]}
+          label={wsName ? `画板「${wsName}」/ BOARD` : category ? `${category}${sub ? ' / ' + sub : ''} / FILTERED` : VIEW_LABEL[view]}
           selected={selected}
           cats={cats}
           tree={tree}
           busy={busy}
           editSignal={editSignal}
+          worksets={worksets}
           onFav={async id => { await window.api.lib.toggleFav(id); await refresh(); }}
           onCopy={async id => { const ok = await window.api.lib.copyImage(id); if (ok) setToast({ msg: '已复制到剪贴板，可 Ctrl+V 贴进画布' }); }}
           onReveal={id => window.api.lib.reveal(id)}
@@ -612,9 +713,11 @@ export default function App() {
           onDragOut={id => window.api.lib.dragOut(id)}
           onRename={renameItem}
           onTags={setTags}
-          onColorClick={hex => { setSim(null); setColorFilter(hex); }}
-          onSimilar={id => { const it = items.find(i => i.id === id); setSim({ id, name: it?.name || '' }); setColorFilter(null); setCategory(null); setSub(null); clearSel(); }}
+          onColorClick={hex => { setSim(null); setColorFilter(hex); setWsFilter(null); }}
+          onSimilar={id => { const it = items.find(i => i.id === id); setSim({ id, name: it?.name || '' }); setColorFilter(null); setCategory(null); setSub(null); setWsFilter(null); clearSel(); }}
           onPin={id => window.api.pin.open(id)}
+          onAddToWorkset={(id, wsId) => addToBoard([id], wsId)}
+          onRemoveFromWorkset={(id, wsId) => removeFromBoard([id], wsId)}
         />
       </div>
 
@@ -705,6 +808,21 @@ export default function App() {
             <div className="mb">
               <button onClick={() => setConfirmCat(null)}>取消</button>
               <button className="primary danger" onClick={() => { const n = confirmCat; setConfirmCat(null); deleteCat(n); }}>删除分类</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmWs && (
+        <div className="modal-veil" onClick={() => setConfirmWs(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="mt">删除画板「{confirmWs.name}」</div>
+            <div className="mh">
+              画板是临时的横向分组：删掉的只是这个<b>分组关系</b>，板里的 {confirmWs.count} 张图<b>不受影响</b>，还在库里和原分类中。
+            </div>
+            <div className="mb">
+              <button onClick={() => setConfirmWs(null)}>取消</button>
+              <button className="primary danger" onClick={() => deleteBoard(confirmWs.id)}>删除画板</button>
             </div>
           </div>
         </div>
