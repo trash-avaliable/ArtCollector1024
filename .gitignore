@@ -26,3 +26,6 @@ installed.png
 # smoke test artifacts
 .rc-test-lib/
 .rc-test-img/
+.rc-test-appdata/
+.rc-shots/
+.rc-smoke-out/

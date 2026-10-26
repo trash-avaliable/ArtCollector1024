@@ -601,6 +601,10 @@ export default function App() {
   }, [category, sub, view, dq, items.length, colorFilter, sim, wsName]);
 
   const fadeKey = `${view}|${category}|${sub}|${dq}|${sort}|${colorFilter}|${sim?.id || ''}`;
+  // 首屏保留交错进入动画；之后任何筛选切换都不再重播（重挂载时不闪骨架）
+  const bootKeyRef = useRef<string | null>(null);
+  if (bootKeyRef.current === null) bootKeyRef.current = fadeKey;
+  const animateIn = fadeKey === bootKeyRef.current;
 
   return (
     <div className="win" data-ark-theme="endfield" data-ark-depth="complex">
@@ -663,6 +667,7 @@ export default function App() {
               <Masonry
                 items={items}
                 fadeKey={fadeKey}
+                animateIn={animateIn}
                 selectedIds={selectedIds}
                 draggingId={draggingId}
                 onSelect={onSelect}
@@ -711,6 +716,19 @@ export default function App() {
           onCategory={changeCategory}
           onSubCategory={changeSubCategory}
           onDragOut={id => window.api.lib.dragOut(id)}
+          onSendToPs={async id => {
+            setBusy('正在送入 PS…');
+            try {
+              const r = await window.api.lib.sendToPs(id);
+              if (r?.ok) setToast({ msg: '已贴进 PS 当前画布（新图层）' });
+              else if (r?.copied) setToast({ msg: 'PS 未响应，已复制图片，到 PS 里 Ctrl+V' });
+              else setToast({ msg: 'PS 没连上，图片复制也失败了，试试「拖入画布」' });
+            } catch (err: any) {
+              setToast({ msg: '送入 PS 失败：' + (err?.message || err) });
+            } finally {
+              setBusy('');
+            }
+          }}
           onRename={renameItem}
           onTags={setTags}
           onColorClick={hex => { setSim(null); setColorFilter(hex); setWsFilter(null); }}

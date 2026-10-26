@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('api', {
     colors: (id) => ipcRenderer.invoke('lib:colors', id),
     searchColors: (opts) => ipcRenderer.invoke('lib:search-colors', opts),
     dragOut: (id) => ipcRenderer.send('lib:drag-out', id),
+    sendToPs: (id) => ipcRenderer.invoke('lib:send-to-ps', id),
     pathForFile: (file) => {
       try { return webUtils.getPathForFile(file); } catch { return ''; }
     }

@@ -1,6 +1,7 @@
 import React, { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { animLabel, thumbUrl, type Item, type Sort, type Workset } from '../types';
+import { cardAspectRatio } from '../lib/aspect';
 import { Select } from './Select';
 
 const SORTS = [
@@ -123,9 +124,9 @@ function useWidth(ref: React.RefObject<HTMLDivElement>) {
 type Box = { x0: number; y0: number; x1: number; y1: number };
 
 export function Masonry({
-  items, fadeKey, selectedIds, draggingId, onSelect, onOpen, onDragOut, onDragStart, onDragEnd, onBoxSelect
+  items, fadeKey, animateIn, selectedIds, draggingId, onSelect, onOpen, onDragOut, onDragStart, onDragEnd, onBoxSelect
 }: {
-  items: Item[]; fadeKey: string; selectedIds: Set<string>; draggingId: string | null;
+  items: Item[]; fadeKey: string; animateIn?: boolean; selectedIds: Set<string>; draggingId: string | null;
   onSelect: (id: string, e: React.MouseEvent) => void; onOpen: (id: string) => void;
   onDragOut: (id: string) => void; onDragStart: (id: string) => void; onDragEnd: () => void;
   onBoxSelect: (ids: string[], additive: boolean) => void;
@@ -226,7 +227,8 @@ export function Masonry({
                 key={it.id}
                 it={it}
                 idx={indexOf.get(it.id) ?? 0}
-                delay={Math.min(ri * 30 + ci * 15, 200)}
+                delay={animateIn ? Math.min(ri * 30 + ci * 15, 200) : 0}
+                animate={animateIn !== false}
                 selected={selectedIds.has(it.id)}
                 dragging={draggingId === it.id}
                 onSelect={onSelect}
@@ -248,17 +250,19 @@ export function Masonry({
 }
 
 export const Card = React.memo(function Card({
-  it, idx, delay, selected, dragging, onSelect, onOpen, onDragOut, onDragStart, onDragEnd
+  it, idx, delay, animate, selected, dragging, onSelect, onOpen, onDragOut, onDragStart, onDragEnd
 }: {
-  it: Item; idx: number; delay: number; selected: boolean; dragging: boolean;
+  it: Item; idx: number; delay: number; animate: boolean; selected: boolean; dragging: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void; onOpen: (id: string) => void;
   onDragOut: (id: string) => void; onDragStart: (id: string) => void; onDragEnd: () => void;
 }) {
+  // 占位比例：it.w/it.h 已是裁白边后的内容尺寸（缩略图同比例），解码前预留高度用
+  const ratio = cardAspectRatio(it);
   return (
     <article
-      className={'card' + (selected ? ' sel' : '') + (dragging ? ' dragging' : '') + (it.deletedAt ? ' gone' : '')}
+      className={'card' + (animate ? '' : ' still') + (selected ? ' sel' : '') + (dragging ? ' dragging' : '') + (it.deletedAt ? ' gone' : '')}
       data-id={it.id}
-      style={{ animationDelay: delay + 'ms' }}
+      style={animate ? { animationDelay: delay + 'ms' } : undefined}
       draggable
       onDragStart={e => {
         e.dataTransfer.setData('text/plain', it.id);
@@ -269,13 +273,16 @@ export const Card = React.memo(function Card({
       onClick={e => onSelect(it.id, e)}
       onDoubleClick={() => onOpen(it.id)}
     >
-      <div className="frame">
-        <img src={thumbUrl(it)} alt={it.name} loading="lazy" draggable={false} />
+      <div className="frame" style={{ aspectRatio: ratio }}>
+        <img src={thumbUrl(it)} alt={it.name} loading="lazy" decoding="async" draggable={false} />
         {animLabel(it) && <span className="animchip">{animLabel(it)}</span>}
         <div
           className="pull"
           title="按住拖到 Photoshop / SAI 窗口即可插入原图"
-          onPointerDown={e => { e.preventDefault(); e.stopPropagation(); onDragOut(it.id); }}
+          onPointerDown={e => {
+            if (e.button !== 0) return;
+            e.preventDefault(); e.stopPropagation(); onDragOut(it.id);
+          }}
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M4 12h12M12 6l6 6-6 6M20 4v16" />
@@ -339,7 +346,15 @@ export function BatchBar({
           />
           {wsActive && <button onClick={onRemoveFromWorkset} title="把选中的图从当前画板移出（图片保留在库里）">移出画板</button>}
           <button onClick={onFav}>收藏</button>
-          <button onClick={onDragOut}>拖出</button>
+          <button
+            title="按住不放，拖到 Photoshop / SAI 窗口里插入原图"
+            onPointerDown={e => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onDragOut();
+            }}
+          >拖出</button>
           <button onClick={onTrim} title="自动检测并裁掉图片四周的白边，原图文件不动">裁白边</button>
           <button className="danger" onClick={onDelete}>删除</button>
         </>

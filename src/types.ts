@@ -126,6 +126,8 @@ declare global {
         colors(id: string): Promise<PaletteColor[]>;
         searchColors(opts: { colors: (string | { hex: string; weight?: number })[]; threshold?: number; limit?: number; category?: string | null }): Promise<(Item & { colorScore: number; matched: { hex: string; dist: number; pct: number }[] })[]>;
         dragOut(id: string): void;
+        /** 直送 Photoshop：把图作为新图层贴进当前活动画布；PS 连不上时降级为复制到剪贴板 */
+        sendToPs(id: string): Promise<{ ok: boolean; psAvailable: boolean; copied: boolean; reason?: string }>;
         pathForFile(file: File): string;
       };
       pin: {
