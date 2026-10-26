@@ -15,6 +15,7 @@ const EXT_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'extension')
   : path.join(__dirname, '..', 'extension');
 const isDev = !!process.env.VITE_DEV;
+const logger = require('./logger');
 
 if (process.env.RC_NOGPU === '1') {
   try { app.disableHardwareAcceleration(); } catch { }
@@ -286,6 +287,7 @@ app.requestSingleInstanceLock();
 app.on('second-instance', showWindow);
 
 app.whenReady().then(async () => {
+  logger.install(app, ipcMain);
   await store.init();
   store.ensureBridgeToken();
   startBridge({
