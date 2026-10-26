@@ -5,7 +5,7 @@ import { Select } from './Select';
 export function Dock({
   stats, count, label, selected, cats, tree, busy, editSignal,
   onFav, onCopy, onReveal, onRemove, onCategory, onSubCategory, onDragOut, onRename,
-  onTags, onColorClick, onSimilar, onPin
+  onTags, onColorClick, onSimilar, onPin, onSendToPs
 }: {
   stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; tree: Tree; busy: string;
   editSignal: number;
@@ -17,6 +17,7 @@ export function Dock({
   onColorClick: (hex: string) => void;
   onSimilar: (id: string) => void;
   onPin: (id: string) => void;
+  onSendToPs: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -223,9 +224,28 @@ export function Dock({
               <button onClick={() => onPin(selected.id)} title="开一个置顶小窗当参考">置顶</button>
               <button className="danger" onClick={() => onRemove(selected.id)}>移出库</button>
             </div>
-            <button className="dragout" onClick={() => onDragOut(selected.id)}>
-              拖入画布 <span className="k">DRAG TO PS / SAI</span>
-            </button>
+            <div className="sendrow">
+              <button
+                className="sendps"
+                disabled={!!busy}
+                title="免拖拽：把这张图作为新图层，直接贴进 Photoshop 当前打开的画布"
+                onClick={() => onSendToPs(selected.id)}
+              >
+                直送 PS <span className="k">TO LAYER</span>
+              </button>
+              <button
+                className="dragout"
+                title="按住不放，拖到 Photoshop / SAI 窗口里插入原图"
+                onPointerDown={e => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDragOut(selected.id);
+                }}
+              >
+                拖入画布 <span className="k">DRAG TO PS / SAI</span>
+              </button>
+            </div>
           </>
         )}
       </div>

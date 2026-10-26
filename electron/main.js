@@ -5,9 +5,11 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 const { pathToFileURL } = require('url');
 const { store, TREE, IMAGE_EXT } = require('./store');
 const { startBridge, PORT: BRIDGE_PORT } = require('./bridge');
+const { buildSendToPsScript, encodePsCommand, decideSendToPs } = require('./ps-bridge');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
 // 扩展必须放在 asar 外（用户要在资源管理器里选中它加载），打包后落在 resources/extension
@@ -246,12 +248,16 @@ async function startPaletteBackfill() {
   }
 }
 
-function startClipWatch() {  clipTimer = setInterval(() => {
+function startClipWatch() {  clipTimer = setInterval(async () => {
     if (clipPaused || !win || win.isDestroyed()) return;
     try {
-      const img = clipboard.readImage();
-      if (!img || img.isEmpty()) return;
-      const png = img.toPNG();
+      // Electron 45：clipboard.read() 返回 ClipboardItem[]，图片走 image/png Blob
+      const items = await clipboard.read();
+      const pngItem = items.find(i => i.types.includes('image/png'));
+      if (!pngItem) return;
+      const blob = await pngItem.getType('image/png');
+      const png = Buffer.from(await blob.arrayBuffer());
+      if (!png.length) return;
       const hash = require('crypto').createHash('sha1').update(png).digest('hex');
       if (hash === lastClipHash) return;
       lastClipHash = hash;
@@ -259,6 +265,7 @@ function startClipWatch() {  clipTimer = setInterval(() => {
       fs.mkdirSync(dir, { recursive: true });
       const file = path.join(dir, hash + '.png');
       if (!fs.existsSync(file)) fs.writeFileSync(file, png);
+      const img = nativeImage.createFromBuffer(png);
       const { width, height } = img.getSize();
       win.webContents.send('clip:image', { file, width, height, dataUrl: img.resize({ width: 220 }).toDataURL() });
     } catch { }
@@ -640,15 +647,23 @@ ipcMain.handle('lib:rename', (e, { id, name }) => store.rename(id, name));
 ipcMain.handle('ui:get-prefs', () => store.getPrefs());
 ipcMain.handle('ui:set-prefs', (e, patch) => store.setPrefs(patch));
 
+/* Electron 45 起 clipboard 模块换成 W3C 风格异步 API（read/write + ClipboardItem），
+   旧的 writeImage / readImage 已移除：统一走这里，图片按 image/png Blob 写入 */
+async function copyImageToClipboard(img) {
+  if (!img || img.isEmpty()) return false;
+  const { ClipboardItem } = require('electron');
+  const blob = new Blob([img.toPNG()], { type: 'image/png' });
+  await clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  return true;
+}
+
 ipcMain.handle('lib:copy-image', async (e, id) => {
   const it = store.getById(id);
   if (!it) return false;
-  const p = store.itemFile(it);
-  const img = nativeImage.createFromPath(p);
-  if (img.isEmpty()) return false;
-  clipboard.writeImage(img);
-  store.touch(id);
-  return true;
+  const img = nativeImage.createFromPath(store.itemFile(it));
+  const ok = await copyImageToClipboard(img);
+  if (ok) store.touch(id);
+  return ok;
 });
 
 ipcMain.on('lib:drag-out', (e, id) => {
@@ -659,8 +674,75 @@ ipcMain.on('lib:drag-out', (e, id) => {
   let icon = nativeImage.createFromPath(store.thumbPath(it.sha));
   if (icon.isEmpty()) icon = nativeImage.createFromPath(path.join(ASSETS, 'tray.png'));
   icon = icon.resize({ width: 96 });
+  // Windows 上 startDrag 的 icon 不能是空图，兜底再查一次
+  if (icon.isEmpty()) icon = nativeImage.createFromPath(path.join(ASSETS, 'tray.png'));
   store.touch(id);
-  e.sender.startDrag({ file, icon });
+  try {
+    e.sender.startDrag({ file, icon });
+  } catch (err) {
+    console.error('startDrag failed', err, 'file=', file);
+  }
+});
+
+/* ---- 直送 Photoshop：图作为新图层贴进当前活动画布（PowerShell COM + DoJavaScript） ---- */
+const PS_EXE = (() => {
+  const cand = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  return fs.existsSync(cand) ? cand : 'powershell.exe';
+})();
+
+/**
+ * 跑一段 PowerShell。脚本用 -EncodedCommand（UTF-16LE base64）传入，
+ * 避开命令行里中文 / 空格 / 引号的所有转义坑。超时强杀，永不挂死。
+ */
+function runPowerShell(script, timeoutMs) {
+  return new Promise((resolve) => {
+    const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand',
+      encodePsCommand(script)];
+    let stdout = '', stderr = '', settled = false;
+    let child;
+    try {
+      child = spawn(PS_EXE, args, { windowsHide: true });
+    } catch (err) {
+      return resolve({ ok: false, timedOut: false, stdout: '', stderr: String(err?.message || err) });
+    }
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { child.kill(); } catch { }
+      resolve({ ok: false, timedOut: true, stdout, stderr: stderr || 'timeout' });
+    }, timeoutMs);
+    child.stdout.on('data', (d) => { stdout += d; });
+    child.stderr.on('data', (d) => { stderr += d; });
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      resolve({ ok: false, timedOut: false, stdout, stderr: String(err?.message || err) });
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      resolve({ ok: code === 0 && stdout.includes('RC_PS_OK'), timedOut: false, stdout, stderr });
+    });
+  });
+}
+
+ipcMain.handle('lib:send-to-ps', async (e, id) => {
+  const it = store.getById(id);
+  if (!it) return { ok: false, psAvailable: false, copied: false, reason: 'not-found' };
+  const file = store.itemFile(it);
+  if (!fs.existsSync(file)) return { ok: false, psAvailable: false, copied: false, reason: 'file-missing' };
+  store.touch(id);
+  // RC_DISABLE_PS=1：自动化测试钩子，跳过真实 COM 调用，直接走降级分支
+  const r = process.env.RC_DISABLE_PS === '1'
+    ? { ok: false, timedOut: false, stdout: '', stderr: 'rc: ps disabled for test (RC_DISABLE_PS)' }
+    : await runPowerShell(buildSendToPsScript(file), 10000);
+  if (r.ok) return decideSendToPs(r, false);
+  // 降级：PS 连不上（没装 / COM 创建失败 / 没开画布 / 忙碌超时）→ 复制原图，去 PS 里 Ctrl+V
+  let copied = false;
+  try {
+    copied = await copyImageToClipboard(nativeImage.createFromPath(file));
+  } catch { }
+  return decideSendToPs(r, copied);
 });
 
 ipcMain.handle('lib:stats', () => store.stats());

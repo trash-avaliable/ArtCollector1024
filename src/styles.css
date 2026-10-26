@@ -197,14 +197,17 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
   will-change: transform;
 }
 .card:hover { transform: translateY(-2px); border-color: var(--line-2); box-shadow: var(--sh-2); }
+/* 筛选切换时不重播进入动画：占位框立即就在，不闪骨架 */
+.card.still { animation: none; }
 .card.sel { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
 .card.sel::after {
   content: ""; position: absolute; top: 0; right: 0; width: 24px; height: 24px;
   background: var(--grad-signal); clip-path: polygon(100% 0, 100% 100%, 0 0);
 }
-.card .frame { position: relative; overflow: hidden; background: #e9ece1; line-height: 0; }
+/* aspect-ratio 占位：img 解码前 frame 就有高度，布局不塌陷 */
+.card .frame { position: relative; overflow: hidden; background: var(--panel); line-height: 0; }
 .card .frame img {
-  display: block; width: 100%; height: auto;
+  display: block; width: 100%; height: 100%; object-fit: cover;
   transition: transform 300ms var(--ease);
 }
 .card:hover .frame img { transform: scale(1.03); }
@@ -367,14 +370,26 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 
 .dfoot { flex: 0 0 auto; padding: 10px 16px 12px; border-top: 1px solid rgba(255, 255, 255, .14); background: rgba(0, 0, 0, .16); display: grid; gap: 6px; }
 .busy { font-family: var(--mono); font-size: 10.5px; color: var(--signal); }
-.dragout {
-  height: 38px; display: flex; align-items: center; justify-content: center; gap: 9px;
+/* 直送 PS（主）+ 拖入画布（次）双动作并排 */
+.sendrow { display: grid; grid-template-columns: 1.15fr 1fr; gap: 6px; }
+.sendps {
+  height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px;
   background: var(--grad-signal); color: var(--ink); font-size: 12px; font-weight: 700;
   box-shadow: inset 0 0 0 1px rgba(26, 28, 23, .28);
-  transition: transform var(--direct) var(--ease), box-shadow var(--direct) var(--ease);
+  transition: transform var(--direct) var(--ease), box-shadow var(--direct) var(--ease), opacity var(--direct) var(--ease);
+}
+.sendps .k { font-family: var(--mono); font-size: 9px; font-weight: 500; opacity: .5; }
+.sendps:hover { transform: translateY(-1px); }
+.sendps:active { transform: translateY(0); }
+.sendps:disabled { opacity: .55; transform: none; }
+.dragout {
+  height: 38px; display: flex; align-items: center; justify-content: center; gap: 9px;
+  background: transparent; color: rgba(255, 255, 255, .82); font-size: 12px; font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .24);
+  transition: transform var(--direct) var(--ease), box-shadow var(--direct) var(--ease), color var(--direct) var(--ease);
 }
 .dragout .k { font-family: var(--mono); font-size: 9px; font-weight: 500; opacity: .5; }
-.dragout:hover { transform: translateY(-1px); }
+.dragout:hover { transform: translateY(-1px); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .55); }
 .dragout:active { transform: translateY(0); }
 .btn-primary {
   height: 42px; display: flex; align-items: center; padding: 0 14px;

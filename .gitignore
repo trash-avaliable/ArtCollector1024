@@ -22,3 +22,10 @@ AppsRefCollector/
 shot-*.png
 crop-*.png
 installed.png
+
+# 交互修复任务的本地测试产物
+.rc-test-lib/
+.rc-test-img/
+.rc-test-appdata/
+.rc-shots/
+.rc-smoke-out/
