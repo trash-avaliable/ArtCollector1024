@@ -11,6 +11,8 @@ const { store, TREE, IMAGE_EXT } = require('./store');
 const { startBridge, PORT: BRIDGE_PORT } = require('./bridge');
 const { buildSendToPsScript, encodePsCommand, decideSendToPs } = require('./ps-bridge');
 const { ClipEngine } = require('./clip');
+const { WebCrawler } = require('./crawler');
+const { parseIntent, CRAWLER_UA } = require('./intent');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
 // 扩展必须放在 asar 外（用户要在资源管理器里选中它加载），打包后落在 resources/extension
@@ -878,3 +880,24 @@ ipcMain.handle('lib:counts', () => store.counts());
 ipcMain.handle('lib:colors', (e, id) => store.colors(id));
 
 ipcMain.handle('lib:search-colors', (e, opts) => store.searchByColors(opts || {}));
+
+/* ---- 内置网页采集 agent（NL 意图 + 反问补全 + 合规护栏） ---- */
+const webCrawler = new WebCrawler({
+  store,
+  getPrefs: () => store.getPrefs(),
+  onProgress: (p) => {
+    if (win && !win.isDestroyed()) win.webContents.send('crawler:progress', p);
+  }
+});
+
+/** NL 意图解析（纯函数 electron/intent.js）：渲染进程不复制这份逻辑 */
+ipcMain.handle('crawler:parse', (e, text) => parseIntent(text));
+
+ipcMain.handle('crawler:start', (e, task) => {
+  // 合规首用确认是硬闸：未确认 prefs.crawler.confirmed 一律拒跑（面板另有引导）
+  if (!store.getPrefs().crawler?.confirmed) return { error: '需要先确认采集合规说明' };
+  return webCrawler.run(task || {});
+});
+ipcMain.on('crawler:cancel', () => webCrawler.cancel());
+ipcMain.handle('crawler:guardrails', () => ({ ua: CRAWLER_UA }));
+
