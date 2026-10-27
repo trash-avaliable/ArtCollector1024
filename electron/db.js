@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-// v5 = 动图标记（animated 列）；v6 = 画板两张表；v7 预留给 CLIP 列（feat/clip-classify 合并时升）
-const SCHEMA_VERSION = 6;
+// v5 = 动图标记（animated）；v6 = 画板两张表；v7 = CLIP 分类列（clip_cat/clip_score/clip_at）
+const SCHEMA_VERSION = 7;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS assets (
   py TEXT NOT NULL DEFAULT '',
   py_init TEXT NOT NULL DEFAULT '',
   cat_py TEXT NOT NULL DEFAULT '',
-  cat_py_init TEXT NOT NULL DEFAULT ''
+  cat_py_init TEXT NOT NULL DEFAULT '',
+  clip_cat TEXT NOT NULL DEFAULT '',
+  clip_score REAL NOT NULL DEFAULT -1,
+  clip_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_assets_added ON assets(added_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assets_cat ON assets(category, subcategory);
@@ -108,6 +111,15 @@ function openDatabase(root) {
   // v4 -> v5：动图标记。NULL = 还没查过（启动时 backfillAnimated 补齐），1 = 会动，0 = 静态
   if (!cols.includes('animated')) {
     db.exec('ALTER TABLE assets ADD COLUMN animated INTEGER');
+  }
+  // v6 -> v7：CLIP 零样本分类的 AI 建议（不直接改分类，只在检查器里提示，用户手动采用）
+  for (const c of ['clip_cat', 'clip_score', 'clip_at']) {
+    if (!cols.includes(c)) {
+      const def = c === 'clip_cat'
+        ? "TEXT NOT NULL DEFAULT ''"
+        : c === 'clip_score' ? 'REAL NOT NULL DEFAULT -1' : 'INTEGER NOT NULL DEFAULT 0';
+      db.exec(`ALTER TABLE assets ADD COLUMN ${c} ${def}`);
+    }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_assets_live ON assets(deleted_at)');
 

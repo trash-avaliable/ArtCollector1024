@@ -30,6 +30,9 @@ export type Item = {
   fname?: string;
   deletedAt?: number;
   simScore?: number;
+  /** CLIP 零样本分类的 AI 建议（空串 = 没跑过 / 低于阈值没写入） */
+  clipCat?: string;
+  clipScore?: number;
 };
 
 export type ScanGroup = {
@@ -67,6 +70,21 @@ export type PaletteColor = { hex: string; l: number; a: number; b: number; pct: 
 export type Toast = { msg: string; undo?: () => void } | null;
 
 export type ClipInfo = { file: string; width: number; height: number; dataUrl: string };
+
+/** CLIP 分类进度（每处理完一张回调一次；stage=download 时是模型下载） */
+export type ClipProgress = {
+  stage?: 'download' | 'classify';
+  done: number;
+  total: number;
+  adopted: number;
+  current?: { id: string; name: string; cat: string; score: number; adopted: boolean; error?: string };
+};
+export type ClipResult = {
+  total: number;
+  adopted: number;
+  items: { id: string; name: string; cat: string; score: number; adopted: boolean; error?: string }[];
+  error?: string;
+};
 
 export type Sort = 'new' | 'old' | 'name' | 'size';
 
@@ -163,10 +181,15 @@ declare global {
         info(): Promise<{ port: number; token: string; extDir: string }>;
         openExt(): Promise<void>;
       };
+      clip: {
+        classify(ids: string[]): Promise<ClipResult>;
+        status(): Promise<{ modelsDir: string; modelsReady: boolean }>;
+      };
       on: {
         importProgress(cb: (p: { done: number; total: number; added: number }) => void): () => void;
         importDone(cb: (p: any) => void): () => void;
         clipImage(cb: (c: ClipInfo) => void): () => void;
+        clipProgress(cb: (p: ClipProgress) => void): () => void;
         focusSearch(cb: () => void): () => void;
         saveClip(cb: () => void): () => void;
         librarySwitched(cb: (p: { root: string; stats: Stats }) => void): () => void;
