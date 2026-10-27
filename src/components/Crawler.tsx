@@ -64,6 +64,12 @@ export function CrawlerPanel({
 
   useEffect(() => { logRef.current?.scrollTo(0, logRef.current.scrollHeight); }, [msgs, prog, thinking]);
 
+  // 运行中的实时进度（crawler:progress 事件由主进程 WebCrawler 每步发出）
+  useEffect(() => {
+    if (!open) return;
+    return window.api.on.crawlerProgress(p => setProg(p));
+  }, [open]);
+
   /** 把解析结果并入参数（只覆盖解析出来的字段），返回合并后的值 */
   const mergeIntent = (intent: CrawlIntent, cur = params) => {
     const next = { ...cur };
