@@ -47,14 +47,24 @@ SRC="$MAIN/node_modules"
 DST="$WT/node_modules"
 
 if [[ -d "$SRC" ]]; then
-  # 后台预热 node_modules，脚本不等待。整个复制（含退出码标记）交给 cmd 原生执行：
-  # 若用 bash 子壳包裹，父脚本退出后子壳会被回收，robocopy 虽能跑完但后续 echo
-  # 不会执行（实测踩过）。MSYS_NO_PATHCONV 防止 Git Bash 把 /MT:16 等开关误转换成
-  # 路径；robocopy 只吃 Windows 风格路径，用 cygpath 转换。标记行用 ASCII 是因为
-  # cmd 对 bash 传入的 UTF-8 中文会按本地码页解释成乱码。
-  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd //v:on //c \
-    "robocopy \"$(cygpath -w "$SRC")\" \"$(cygpath -w "$DST")\" /E /MT:16 /NFL /NDL /NJH /NP & echo. & if errorlevel 8 (echo RC_EXIT: !errorlevel! FAILED (>=8). Fallback: cd \"$WT\" && npm install) else (echo RC_EXIT: !errorlevel! OK (robocopy 1 = files copied, not an error))" \
-    > "$LOG" 2>&1 &
+  # 后台预热 node_modules，脚本不等待。为什么生成临时 .cmd 批处理而不是直接在
+  # bash 里拼命令：
+  #   - bash 子壳包裹 robocopy：父脚本退出后子壳被回收，robocopy 能跑完但后续
+  #     echo 退出码标记不会执行（实测踩过）；
+  #   - cmd /c "..." 内嵌引号：MSYS 重建命令行时把引号转义成 \"，cmd 不认这种
+  #     转义，路径全乱（实测踩过）；批处理文件由 cmd 原生解析引号，最稳。
+  # robocopy 只吃 Windows 风格路径，用 cygpath 转换。标记行用 ASCII：cmd 对
+  # UTF-8 中文按本地码页解释会乱码。
+  BAT="$PARENT/.wt-$NAME.copy.cmd"
+  rm -f "$BAT"
+  SRCW="$(cygpath -w "$SRC")"
+  DSTW="$(cygpath -w "$DST")"
+  cat > "$BAT" <<EOF
+@echo off
+robocopy "$SRCW" "$DSTW" /E /MT:16 /NFL /NDL /NJH /NP
+if errorlevel 8 (echo RC_EXIT: %errorlevel% FAILED [^>=8]. Fallback: cd worktree ^&^& npm install) else (echo RC_EXIT: %errorlevel% OK [robocopy 1 = files copied, not an error])
+EOF
+  cmd //c "$(cygpath -w "$BAT")" > "$LOG" 2>&1 &
   disown
   COPY_PID=$!
 else
