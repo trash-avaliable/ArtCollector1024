@@ -348,6 +348,9 @@ test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面
   const jsC = `(async()=>{
     const btn = document.querySelector('.tb-dock');
     if (!btn) return { error: '标题栏 dock 切换钮缺失' };
+    // 先选中一张图让 dock 完整展开（脊柱态只有 56px，收起收益测不出来）
+    const firstCard = document.querySelector('.card');
+    if (firstCard) { firstCard.click(); await new Promise(r => setTimeout(r, 500)); }
     const app = document.querySelector('.app');
     const stage = document.querySelector('.stage');
     const before = Math.round(stage.getBoundingClientRect().width);
