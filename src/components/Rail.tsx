@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { isCollapsed, railSections, type CollapseState, type RailSectionDef } from '../lib/layout-registry';
-import type { Stats, Tree, View, Workset } from '../types';
+import type { Note, Stats, Tree, View, Workset } from '../types';
 
 const RAIL_MIME = 'application/x-rail';
 
@@ -27,6 +27,7 @@ export function Rail({
   railViews, railCats, onReorder, dropCat, setDropCat, onDropOnCategory, onDropOnSub,
   onAddCat, onRenameCat, onDropCat,
   worksets, wsFilter, onPickWorkset, onAddWorkset, onRenameWorkset, onDeleteWorkset, onDropOnWorkset,
+  notes, activeNoteId, onPickNote, onAddNote, onRenameNote, onDeleteNote, onPinNote,
   railMini, onToggleRailMini, sectionCollapsed, onToggleSection
 }: {
   view: View; setView: (v: View) => void; stats: Stats; tree: Tree;
@@ -46,6 +47,13 @@ export function Rail({
   onRenameWorkset: (id: string, name: string) => void;
   onDeleteWorkset: (id: string) => void;
   onDropOnWorkset: (id: string) => void;
+  /** 笔记分区：置顶优先的笔记列表 + 左栏点进笔记视图 */
+  notes: Note[]; activeNoteId: string | null;
+  onPickNote: (id: string) => void;
+  onAddNote: (title: string) => void;
+  onRenameNote: (id: string, title: string) => void;
+  onDeleteNote: (id: string) => void;
+  onPinNote: (id: string) => void;
   /** 左栏整体是否折叠成 56px 图标轨（prefs.railMini） */
   railMini: boolean;
   onToggleRailMini: () => void;
@@ -66,6 +74,10 @@ export function Rail({
   const [editWs, setEditWs] = useState<string | null>(null);
   const [wsDraft, setWsDraft] = useState('');
   const [dropWs, setDropWs] = useState<string | null>(null);
+  const [noteAdding, setNoteAdding] = useState(false);
+  const [noteNewName, setNoteNewName] = useState('');
+  const [editNote, setEditNote] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
 
   const views = (railViews.length ? railViews : NAV.map(n => n.key)).filter(k => k !== 'trash');
   const cats = railCats.length ? railCats : tree.map(([c]) => c);
@@ -140,6 +152,13 @@ export function Rail({
     if (v) onAddWorkset(v);
     setWsNewName('');
     setWsAdding(false);
+  };
+
+  const commitNoteAdd = () => {
+    const v = noteNewName.trim();
+    if (v) onAddNote(v);
+    setNoteNewName('');
+    setNoteAdding(false);
   };
 
   /** 分区头上的 ＋：折叠状态先展开分区再进输入态 */
@@ -358,12 +377,78 @@ export function Rail({
         </>
       );
     }
+    if (id === 'notes') {
+      return (
+        <>
+          {noteAdding && (
+            <div className="catadd">
+              <input
+                autoFocus
+                value={noteNewName}
+                placeholder="新笔记标题"
+                onChange={e => setNoteNewName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitNoteAdd();
+                  if (e.key === 'Escape') { setNoteAdding(false); setNoteNewName(''); }
+                }}
+                onBlur={commitNoteAdd}
+              />
+            </div>
+          )}
+          <div className="boards notelist">
+            {notes.map(n => (
+              <div
+                key={n.id}
+                className={'cat note' + (activeNoteId === n.id ? ' on' : '')}
+                onClick={() => { if (editNote !== n.id) onPickNote(n.id); }}
+                title={n.pinned ? `📌 置顶笔记「${n.title}」· ${n.assetCount} 张插图` : `笔记「${n.title}」· ${n.assetCount} 张插图`}
+              >
+                {editNote === n.id ? (
+                  <input
+                    className="catrename"
+                    autoFocus
+                    value={noteDraft}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => setNoteDraft(e.target.value)}
+                    onKeyDown={e => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter') { onRenameNote(n.id, noteDraft.trim() || n.title); setEditNote(null); }
+                      if (e.key === 'Escape') setEditNote(null);
+                    }}
+                    onBlur={() => setEditNote(null)}
+                  />
+                ) : (
+                  <>
+                    <span className="nm">
+                      {n.pinned && <i className="pinmark" title="置顶">📌</i>}
+                      {n.title}
+                    </span>
+                    <i className="cnt">{n.assetCount || ''}</i>
+                    <span className="cattools">
+                      <button
+                        title={n.pinned ? '取消置顶' : '置顶'}
+                        onClick={e => { e.stopPropagation(); onPinNote(n.id); }}
+                      >📌</button>
+                      <button title="改名" onClick={e => { e.stopPropagation(); setEditNote(n.id); setNoteDraft(n.title); }}>✎</button>
+                      <button title="删除笔记（图片不受影响）" onClick={e => { e.stopPropagation(); onDeleteNote(n.id); }}>×</button>
+                    </span>
+                  </>
+                )}
+              </div>
+            ))}
+            {!notes.length && !noteAdding && (
+              <div className="ws-none">还没有笔记，点上面 ＋ 新建</div>
+            )}
+          </div>
+        </>
+      );
+    }
     // EXTENSION-RAIL-SECTION: 新注册的分区在这里补一个渲染分支（见 layout-registry.ts 顶部说明）。
     return null;
   };
 
   /* ---------- 图标轨态：点图标 = 展开左栏 + 展开对应分区 ---------- */
-  const activeSection = wsFilter ? 'boards' : category ? 'categories' : 'views';
+  const activeSection = activeNoteId ? 'notes' : wsFilter ? 'boards' : category ? 'categories' : 'views';
 
   return (
     <nav className={'rail' + (railMini ? ' mini' : '')} aria-label="素材库导航">
@@ -418,6 +503,9 @@ export function Rail({
                   )}
                   {sec.id === 'boards' && (
                     <button className="railadd" onClick={() => startAdd(sec, setWsAdding)} title="新建画板（跨分类临时组图）">＋</button>
+                  )}
+                  {sec.id === 'notes' && (
+                    <button className="railadd" onClick={() => startAdd(sec, setNoteAdding)} title="新建笔记">＋</button>
                   )}
                 </div>
                 {!folded && <div className="rsec-b">{sectionBody(sec.id)}</div>}

@@ -37,8 +37,8 @@ test('createRegistry：重复注册同名报错（id 是折叠状态 / prefs 的
 
 /* ---------------- 左栏 Section 默认注册 ---------------- */
 
-test('railSections：默认分区齐全且字段完整（views/categories/boards）', () => {
-  assert.deepEqual(railSections.ids(), ['views', 'categories', 'boards']);
+test('railSections：默认分区齐全且字段完整（views/categories/boards/notes）', () => {
+  assert.deepEqual(railSections.ids(), ['views', 'categories', 'boards', 'notes']);
   for (const s of railSections.list()) {
     assert.ok(typeof s.en === 'string' && s.en.length > 0, 'en 微标签缺失');
     assert.ok(s.cn.length > 0, 'cn 名称为空');
@@ -49,20 +49,21 @@ test('railSections：默认分区齐全且字段完整（views/categories/boards
 
 /* ---------------- 右栏 Dock Tab 默认注册 ---------------- */
 
-test('dockTabs：检查器是第一个 Tab，sanitizeDockTab 守卫未知 id', () => {
-  assert.deepEqual(dockTabs.ids(), ['inspector']);
+test('dockTabs：检查器是第一个 Tab，笔记是第二个，sanitizeDockTab 守卫未知 id', () => {
+  assert.deepEqual(dockTabs.ids(), ['inspector', 'notes']);
   assert.equal(sanitizeDockTab('inspector', dockTabs), 'inspector');
+  assert.equal(sanitizeDockTab('notes', dockTabs), 'notes');
   assert.equal(sanitizeDockTab('not-registered', dockTabs), 'inspector', '未知 id 回落第一个 Tab');
   assert.equal(sanitizeDockTab(undefined, dockTabs), 'inspector');
   assert.equal(sanitizeDockTab(42, dockTabs), 'inspector');
 
-  // 未来第二个 Tab（笔记）注册后：未知 id 仍回落到 order 最小的那个
+  // 未来第三个 Tab（采集）注册后：未知 id 仍回落到 order 最小的那个
   const reg2 = createRegistry('dock-tab-probe');
-  reg2.register({ id: 'notes', en: 'NOTES', cn: '笔记', order: 20 });
+  reg2.register({ id: 'capture', en: 'CAPTURE', cn: '采集', order: 30 });
   reg2.register({ id: 'inspector', en: 'INSPECTOR', cn: '检查器', order: 10 });
-  assert.deepEqual(reg2.ids(), ['inspector', 'notes']);
+  assert.deepEqual(reg2.ids(), ['inspector', 'capture']);
   assert.equal(sanitizeDockTab('missing', reg2), 'inspector');
-  assert.equal(sanitizeDockTab('notes', reg2), 'notes');
+  assert.equal(sanitizeDockTab('capture', reg2), 'capture');
   // 注册表为空时必须炸：Tab 化的右栏不允许零 Tab
   const regEmpty = createRegistry('dock-tab-empty');
   assert.throws(() => sanitizeDockTab('x', regEmpty), /至少要注册一个 Tab/);

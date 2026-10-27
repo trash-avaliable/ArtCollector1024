@@ -249,6 +249,19 @@ class Store {
   removeWorksetItems(id, ids) { return this.tools.removeWorksetItems(id, ids); }
   worksetItems(id) { return this.tools.worksetItems(id); }
   worksetsFor(assetId) { return this.tools.worksetsFor(assetId); }
+
+  /* ---- 笔记 ---- */
+  noteList() { return this.tools.noteList(); }
+  noteGet(id) { return this.tools.noteGet(id); }
+  noteCreate(title, content) { return this.tools.noteCreate(title, content); }
+  noteUpdate(id, patch) { return this.tools.noteUpdate(id, patch); }
+  noteDelete(id) { return this.tools.noteDelete(id); }
+  notePin(id) { return this.tools.notePin(id); }
+  noteLink(id, ids) { return this.tools.noteLink(id, ids); }
+  noteUnlink(id, ids) { return this.tools.noteUnlink(id, ids); }
+  noteAssets(id) { return this.tools.noteAssets(id); }
+  notesForAsset(assetId) { return this.tools.notesForAsset(assetId); }
+  noteSearch(query) { return this.tools.noteSearch(query); }
 }
 
 module.exports = { store: new Store(), TREE, IMAGE_EXT, makeImageOps };

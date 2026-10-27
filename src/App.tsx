@@ -5,6 +5,7 @@ import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
 import { CrawlerPanel } from './components/Crawler';
+import { NoteView } from './components/Notes';
 import { Settings } from './components/Settings';
 import { fullPrefs, matchesAppKey, type FullPrefs } from './lib/settings-core';
 import { CommandPalette } from './components/CommandPalette';
@@ -13,7 +14,7 @@ import {
   commands, dockTabs, parseCollapse, sanitizeDockTab, serializeCollapse, toggleCollapse,
   type CollapseState, type CommandEntry
 } from './lib/layout-registry';
-import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset } from './types';
+import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Note, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset } from './types';
 
 const idsOf = (s: Set<string>): string[] => {
   const out: string[] = [];
@@ -37,6 +38,12 @@ export default function App() {
   const [sub, setSub] = useState<string | null>(null);
   const [worksets, setWorksets] = useState<Workset[]>([]);
   const [wsFilter, setWsFilter] = useState<string | null>(null);
+  /* ---------- 笔记（RTM-S24）：左栏分区 + stage 笔记视图 + 检查器笔记 Tab ---------- */
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [noteAssets, setNoteAssets] = useState<Item[]>([]);
+  const [noteRev, setNoteRev] = useState(0);
+  const [confirmNote, setConfirmNote] = useState<Note | null>(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('new');
   const [colorFilter, setColorFilter] = useState<string | null>(null);
@@ -92,6 +99,29 @@ export default function App() {
     try { setWorksets(await window.api.workset.list() || []); } catch { }
   }, []);
 
+  /* ---------- 笔记（RTM-S24）---------- */
+  const loadNotes = useCallback(async () => {
+    try { setNotes(await window.api.note.list() || []); } catch { }
+    setNoteRev(v => v + 1); // 检查器笔记 Tab 的重查信号
+  }, []);
+
+  const loadNoteAssets = useCallback(async (id: string | null) => {
+    if (!id) { setNoteAssets([]); return; }
+    try { setNoteAssets(await window.api.note.assets(id) || []); } catch { setNoteAssets([]); }
+  }, []);
+
+  /** 进/出笔记视图：笔记和分类/画板是两套视图，进笔记时清掉竖向筛选 */
+  const pickNote = useCallback((id: string | null) => {
+    setActiveNoteId(id);
+    setCategory(null);
+    setSub(null);
+    setSim(null);
+    setColorFilter(null);
+    setWsFilter(null);
+    clearSel();
+    if (id) loadNoteAssets(id); else setNoteAssets([]);
+  }, [loadNoteAssets]);
+
   const refresh = useCallback(async (opts?: { view?: View; category?: string | null; sub?: string | null; query?: string; sort?: Sort }) => {
     const v = opts?.view ?? view;
     const c = opts?.category === undefined ? category : opts.category;
@@ -139,6 +169,7 @@ export default function App() {
       setRailCollapsed(parseCollapse(prefs?.railCollapsed));
       setDockHidden(!!prefs?.dockHidden);
       setDockTab(sanitizeDockTab(prefs?.dockTab, dockTabs));
+      await loadNotes();
       await refreshRef.current();
       setMaximized(await window.api.win.isMax());
     })();
@@ -159,6 +190,9 @@ export default function App() {
       setRoot(p.root);
       setStats(p.stats);
       setSelectedIds(new Set());
+      setActiveNoteId(null); // 笔记跟着库走：换库后退出笔记视图再重载列表
+      setNoteAssets([]);
+      await loadNotes();
       await refreshRef.current();
     });
     const off7 = window.api.on.clipProgress(p => {
@@ -167,7 +201,6 @@ export default function App() {
     });
     return () => { off1(); off2(); off3(); off4(); off5(); offHk(); off6(); off7(); };
   }, []);
-
   useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim, wsFilter]);
 
   useEffect(() => {
@@ -204,9 +237,10 @@ export default function App() {
         if (cmdOpen) { setCmdOpen(false); return; }
         if (guideOpen) { setGuideOpen(false); return; }
         if (capture) { setCapture(false); return; }   // 采集面板关闭时自己会顺带取消运行中的任务
+        if (activeNoteId) { setActiveNoteId(null); setNoteAssets([]); return; } // 笔记视图也是一层
         if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
         setLightboxId(null); setClip(null);
-        setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setConfirmWs(null); setSettings(false);
+        setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setConfirmWs(null); setConfirmNote(null); setSettings(false);
         setWsFilter(null); // 画板视图也是一层过滤：Esc 逐层退出
       }
       if (e.key === 'F2' && selectedIds.size === 1 && !typing) { e.preventDefault(); setEditSignal(n => n + 1); }
@@ -223,7 +257,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen, capture]);
+  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen, capture, activeNoteId]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => { e.preventDefault(); };
@@ -380,6 +414,74 @@ export default function App() {
     if (r.error) { setToast({ msg: r.error }); return; }
     await refresh();
     setToast({ msg: r.added ? `已加入画板「${ws?.name || ''}」` : `这张图已经在「${ws?.name || ''}」里了` });
+  };
+
+  /* ---------- 笔记（RTM-S24）：删笔记不动图，删图 CASCADE 清关联 ---------- */
+  const addNote = async (title: string) => {
+    const r = await window.api.note.create(title);
+    if (r?.error) { setToast({ msg: r.error }); return; }
+    await loadNotes();
+    if (r?.id) { setActiveNoteId(r.id); loadNoteAssets(r.id); }
+    setToast({ msg: `已新建笔记「${r?.title || title}」` });
+  };
+
+  /** 自动保存共用：title / content 可只改其一 */
+  const patchNote = async (id: string, patch: { title?: string; content?: string }) => {
+    const r = await window.api.note.update({ id, ...patch });
+    if (r?.error) { setToast({ msg: r.error }); return; }
+    await loadNotes();
+  };
+
+  const deleteNote = async (id: string) => {
+    setConfirmNote(null);
+    const r = await window.api.note.delete(id);
+    if (!r.ok) { setToast({ msg: r.error || '删除失败' }); return; }
+    if (activeNoteId === id) { setActiveNoteId(null); setNoteAssets([]); }
+    await loadNotes();
+    setToast({ msg: `已删除笔记「${notes.find(n => n.id === id)?.title || ''}」，图片都不受影响` });
+  };
+
+  const pinNote = async (id: string) => {
+    await window.api.note.pin(id);
+    await loadNotes();
+  };
+
+  const linkToActiveNote = async (assetId: string) => {
+    if (!activeNoteId) return;
+    const r = await window.api.note.link(activeNoteId, [assetId]);
+    if (r.error) { setToast({ msg: r.error }); return; }
+    await loadNoteAssets(activeNoteId);
+    await loadNotes();
+    setToast({ msg: r.added ? '已关联进笔记' : '这张图已经关联过了' });
+  };
+
+  const unlinkFromActiveNote = async (assetId: string) => {
+    if (!activeNoteId) return;
+    await window.api.note.unlink(activeNoteId, [assetId]);
+    await loadNoteAssets(activeNoteId);
+    await loadNotes();
+    setToast({ msg: '已从笔记移除（图片还在库里）' });
+  };
+
+  /** 检查器笔记 Tab：从笔记里移除当前图 */
+  const unlinkNotePair = async (noteId: string, assetId: string) => {
+    const r = await window.api.note.unlink(noteId, [assetId]);
+    if (r.error) { setToast({ msg: r.error }); return; }
+    await loadNotes();
+    if (activeNoteId === noteId) await loadNoteAssets(noteId);
+    setToast({ msg: '已从笔记移除该图（笔记与图片都保留）' });
+  };
+
+  /** 检查器笔记 Tab：新建笔记并关联此图 */
+  const createNoteForAsset = async (assetId: string) => {
+    const nm = items.find(i => i.id === assetId)?.name || '图片';
+    const stem = nm.replace(/\.[a-z0-9]+$/i, '');
+    const r = await window.api.note.create(`关于「${stem}」`);
+    if (r?.error) { setToast({ msg: r.error }); return; }
+    if (!r?.id) return;
+    await window.api.note.link(r.id, [assetId]);
+    await loadNotes();
+    setToast({ msg: `已新建笔记「${r.title}」并关联此图` });
   };
 
   /* ---------- 选择 ---------- */
@@ -663,21 +765,24 @@ export default function App() {
   };
 
   const selected = items.find(i => i.id === selectedIds.values().next().value) || null;
-  const lightboxItem = items.find(i => i.id === lightboxId) || null;
+  const lightboxPool = activeNoteId ? noteAssets : items;
+  const lightboxItem = lightboxPool.find(i => i.id === lightboxId) || null;
   const cats = tree.map(([c]) => c);
   
 
   const navLightbox = (dir: -1 | 1) => {
     if (!lightboxId) return;
-    const i = items.findIndex(x => x.id === lightboxId);
+    const i = lightboxPool.findIndex(x => x.id === lightboxId);
     if (i < 0) return;
-    const n = items[(i + dir + items.length) % items.length];
+    const n = lightboxPool[(i + dir + lightboxPool.length) % lightboxPool.length];
     if (n) setLightboxId(n.id);
   };
 
   const wsName = useMemo(() => worksets.find(w => w.id === wsFilter)?.name || null, [worksets, wsFilter]);
+  const activeNote = useMemo(() => notes.find(n => n.id === activeNoteId) || null, [notes, activeNoteId]);
 
   const crumb = useMemo(() => {
+    if (activeNote) return ['库', `笔记「${activeNote.title}」`, `${notes.length} 条笔记`].join('  /  ');
     const parts = ['库'];
     if (sim) {
       parts.push(`相似于「${sim.name}」`);
@@ -691,7 +796,7 @@ export default function App() {
     if (dq) parts.push(`搜索「${dq}」`);
     parts.push(`${items.length} 项`);
     return parts.join('  /  ');
-  }, [category, sub, view, dq, items.length, colorFilter, sim, wsName]);
+  }, [activeNote, notes.length, category, sub, view, dq, items.length, colorFilter, sim, wsName]);
 
   const fadeKey = `${view}|${category}|${sub}|${dq}|${sort}|${colorFilter}|${sim?.id || ''}`;
   // 首屏保留交错进入动画；之后任何筛选切换都不再重播（重挂载时不闪骨架）
@@ -700,9 +805,9 @@ export default function App() {
   const animateIn = fadeKey === bootKeyRef.current;
 
   /* ---------- 命令面板（Ctrl+K）：静态注册 + 动态（分类 / 画板） ---------- */
-  // EXTENSION-COMMAND: 动作映射表。未来功能的命令（笔记搜索 / 网页采集 / 问询…）
-  // 在 layout-registry.ts 的 commands 里注册 def，再在这里补一个同 id 的 handler 即可；
-  // 动态条目（分类 / 画板）不进注册表，按当前库内容在下面即时拼装。
+  // EXTENSION-COMMAND: 动作映射表。未来功能的命令（网页采集 / 问询…）
+  // 在 layout-registry.ts 的 commands 里注册 def，再在这里补一个同 id 的 handler 即可
+  // （笔记 act.notes 已照此接入）；动态条目（分类 / 画板）不进注册表，按当前库内容在下面即时拼装。
   const commandHandlers: Record<string, () => void> = {
     'view.all': () => gotoView('all'),
     'view.inbox': () => gotoView('inbox'),
@@ -711,6 +816,7 @@ export default function App() {
     'view.trash': () => gotoView('trash'),
     'act.import': doImport,
     'act.capture': () => setCapture(true),
+    'act.notes': () => pickNote(notes[0]?.id || null),
     'act.settings': () => setSettings(true),
     'layout.rail-mini': toggleRailMini,
     'layout.dock-hidden': toggleDockHidden,
@@ -782,6 +888,13 @@ export default function App() {
           onRenameWorkset={renameBoard}
           onDeleteWorkset={id => setConfirmWs(worksets.find(w => w.id === id) || null)}
           onDropOnWorkset={onDropOnWorkset}
+          notes={notes}
+          activeNoteId={activeNoteId}
+          onPickNote={pickNote}
+          onAddNote={addNote}
+          onRenameNote={(id, title) => patchNote(id, { title })}
+          onDeleteNote={id => setConfirmNote(notes.find(n => n.id === id) || null)}
+          onPinNote={pinNote}
           railMini={railMini}
           onToggleRailMini={toggleRailMini}
           sectionCollapsed={railCollapsed}
@@ -790,46 +903,65 @@ export default function App() {
 
         <main className="stage">
           {busy && <div className="scan" />}
-          <Toolbar
-            ref={searchRef}
-            query={query}
-            setQuery={setQuery}
-            sort={sort}
-            setSort={setSort}
-            category={category}
-            sub={sub}
-            cats={cats}
-            setCategory={c => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
-            colorFilter={colorFilter}
-            onClearColor={() => setColorFilter(null)}
-            simLabel={sim ? sim.name : null}
-            onClearSim={() => setSim(null)}
-            worksetLabel={wsName}
-            onClearWorkset={() => selectBoard(null)}
-            onImport={doImport}
-            onImportTo={importTo}
-            onCapture={() => setCapture(true)}
-            onClipInbox={view === 'inbox' && !category && !sim && !colorFilter && stats.inbox > 0 ? clipInbox : undefined}
-          />
-          <div className="gridwrap">
-            {items.length === 0 ? (
-              <EmptyState query={dq} onImport={doImport} />
-            ) : (
-              <Masonry
-                items={items}
-                fadeKey={fadeKey}
-                animateIn={animateIn}
-                selectedIds={selectedIds}
-                draggingId={draggingId}
-                onSelect={onSelect}
-                onOpen={setLightboxId}
-                onDragOut={id => window.api.lib.dragOut(id)}
-                onDragStart={setDraggingId}
-                onDragEnd={() => { setDraggingId(null); setDropCat(null); }}
-                onBoxSelect={onBoxSelect}
+          {activeNoteId ? (
+            /* 笔记视图（RTM-S24）：左列笔记列表 + 右侧编辑器 + 关联图片，点缩略图开灯箱 */
+            <NoteView
+              notes={notes}
+              activeId={activeNoteId}
+              assets={noteAssets}
+              onPick={pickNote}
+              onCreate={addNote}
+              onPatch={patchNote}
+              onDelete={id => setConfirmNote(notes.find(n => n.id === id) || null)}
+              onPin={pinNote}
+              onLink={linkToActiveNote}
+              onUnlink={unlinkFromActiveNote}
+              onOpenAsset={setLightboxId}
+            />
+          ) : (
+            <>
+              <Toolbar
+                ref={searchRef}
+                query={query}
+                setQuery={setQuery}
+                sort={sort}
+                setSort={setSort}
+                category={category}
+                sub={sub}
+                cats={cats}
+                setCategory={c => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
+                colorFilter={colorFilter}
+                onClearColor={() => setColorFilter(null)}
+                simLabel={sim ? sim.name : null}
+                onClearSim={() => setSim(null)}
+                worksetLabel={wsName}
+                onClearWorkset={() => selectBoard(null)}
+                onImport={doImport}
+                onImportTo={importTo}
+                onCapture={() => setCapture(true)}
+                onClipInbox={view === 'inbox' && !category && !sim && !colorFilter && stats.inbox > 0 ? clipInbox : undefined}
               />
-            )}
-          </div>
+              <div className="gridwrap">
+                {items.length === 0 ? (
+                  <EmptyState query={dq} onImport={doImport} />
+                ) : (
+                  <Masonry
+                    items={items}
+                    fadeKey={fadeKey}
+                    animateIn={animateIn}
+                    selectedIds={selectedIds}
+                    draggingId={draggingId}
+                    onSelect={onSelect}
+                    onOpen={setLightboxId}
+                    onDragOut={id => window.api.lib.dragOut(id)}
+                    onDragStart={setDraggingId}
+                    onDragEnd={() => { setDraggingId(null); setDropCat(null); }}
+                    onBoxSelect={onBoxSelect}
+                  />
+                )}
+              </div>
+            </>
+          )}
           <BatchBar
             count={selectedIds.size}
             cats={cats}
@@ -890,6 +1022,10 @@ export default function App() {
           onPin={id => window.api.pin.open(id)}
           onAddToWorkset={(id, wsId) => addToBoard([id], wsId)}
           onRemoveFromWorkset={(id, wsId) => removeFromBoard([id], wsId)}
+          noteRev={noteRev}
+          onUnlinkNote={unlinkNotePair}
+          onCreateNoteForAsset={createNoteForAsset}
+          onOpenNote={pickNote}
         />
       </div>
 
@@ -994,6 +1130,22 @@ export default function App() {
             <div className="mb">
               <button onClick={() => setConfirmWs(null)}>取消</button>
               <button className="primary danger" onClick={() => deleteBoard(confirmWs.id)}>删除画板</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmNote && (
+        <div className="modal-veil" onClick={() => setConfirmNote(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="mt">删除笔记「{confirmNote.title}」</div>
+            <div className="mh">
+              笔记的<b>正文与 {confirmNote.assetCount} 条图片关联</b>会一并清除；
+              关联的图片<b>不受影响</b>，还好好在库里。
+            </div>
+            <div className="mb">
+              <button onClick={() => setConfirmNote(null)}>取消</button>
+              <button className="primary danger" onClick={() => deleteNote(confirmNote.id)}>删除笔记</button>
             </div>
           </div>
         </div>

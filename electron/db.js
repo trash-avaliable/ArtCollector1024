@@ -4,7 +4,8 @@ const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 // v5 = 动图标记（animated）；v6 = 画板两张表；v7 = CLIP 分类列（clip_cat/clip_score/clip_at）
-const SCHEMA_VERSION = 7;
+// v8 = 笔记两张表（notes / note_links）
+const SCHEMA_VERSION = 8;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -76,6 +77,25 @@ CREATE TABLE IF NOT EXISTS workset_items (
   PRIMARY KEY (workset_id, asset_id)
 );
 CREATE INDEX IF NOT EXISTS idx_workset_items_asset ON workset_items(asset_id);
+
+-- 笔记：给参考图配文字。可独立存在，也可把库里的图关联进来当插图。
+-- 删笔记只清 note_links（CASCADE），图片一概不动；反过来彻底删图也 CASCADE 清关联。
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  pinned INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS note_links (
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (note_id, asset_id)
+);
+CREATE INDEX IF NOT EXISTS idx_note_links_asset ON note_links(asset_id);
 
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,

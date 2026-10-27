@@ -65,6 +65,21 @@ export type Tree = [string, string[]][];
 /** 画板（工作集）：跨分类的多对多组织，count 只数没进回收站的成员 */
 export type Workset = { id: string; name: string; createdAt: number; count: number };
 
+/** 笔记：给参考图配文字。assetCount 只数没进回收站的关联图片；linkedAt 仅 notesForAsset 返回时有值 */
+export type Note = {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  createdAt: number;
+  updatedAt: number;
+  assetCount: number;
+  linkedAt?: number;
+};
+
+/** note:create / note:update 的返回（error 存在 = 校验没过，其余字段缺省） */
+export type NoteResult = (Partial<Note> & { error?: string }) | null;
+
 export type PaletteColor = { hex: string; l: number; a: number; b: number; pct: number };
 
 export type Toast = { msg: string; undo?: () => void } | null;
@@ -207,6 +222,19 @@ declare global {
         removeItems(id: string, ids: string[]): Promise<{ removed: number; error?: string }>;
         items(id: string): Promise<Item[]>;
         forAsset(assetId: string): Promise<Workset[]>;
+      };
+      note: {
+        list(): Promise<Note[]>;
+        get(id: string): Promise<Note | null>;
+        create(title: string): Promise<NoteResult>;
+        update(p: { id: string; title?: string; content?: string }): Promise<NoteResult>;
+        delete(id: string): Promise<{ ok: boolean; error?: string }>;
+        pin(id: string): Promise<{ id: string; pinned: boolean } | null>;
+        link(id: string, ids: string[]): Promise<{ added: number; error?: string }>;
+        unlink(id: string, ids: string[]): Promise<{ removed: number; error?: string }>;
+        assets(id: string): Promise<Item[]>;
+        forAsset(assetId: string): Promise<Note[]>;
+        search(query: string): Promise<Note[]>;
       };
       bridge: {
         info(): Promise<{ port: number; token: string; extDir: string }>;

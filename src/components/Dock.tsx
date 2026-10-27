@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { animLabel, cropImgStyle, cropOf, fmtDate, fmtSize, origUrl, thumbUrl, type ColorHit, type Item, type Stats, type Tree, type Workset } from '../types';
+import { animLabel, cropImgStyle, cropOf, fmtDate, fmtSize, origUrl, thumbUrl, type ColorHit, type Item, type Note, type Stats, type Tree, type Workset } from '../types';
 import { dockTabs } from '../lib/layout-registry';
 import { Select } from './Select';
 
@@ -52,10 +52,78 @@ function Pv({ item }: { item: Item }) {
   );
 }
 
+/**
+ * 检查器「笔记」Tab：当前选中图关联的笔记列表（可从笔记里移除该图），
+ * +「新建笔记并关联此图」。noteRev 变化（增删改关联）时重查。
+ */
+function NotePane({
+  selected, noteRev, onUnlink, onCreateAndLink, onOpenNote
+}: {
+  selected: Item;
+  noteRev: number;
+  onUnlink: (noteId: string, assetId: string) => void;
+  onCreateAndLink: (assetId: string) => void;
+  onOpenNote: (noteId: string) => void;
+}) {
+  const [list, setList] = useState<Note[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    window.api.note.forAsset(selected.id)
+      .then(r => { if (alive) setList(r || []); })
+      .catch(() => { });
+    return () => { alive = false; };
+  }, [selected.id, noteRev]);
+
+  return (
+    <div className="dbody notetab">
+      <div className="pvname" title={selected.name}>{selected.name}</div>
+      <div className="dim">这张图被以下笔记引用为插图</div>
+
+      <div className="sect">
+        <div className="sh"><span>LINKED NOTES / 关联笔记</span><em>{list.length} 条</em></div>
+        {list.length ? (
+          <div className="ntlist">
+            {list.map(n => (
+              <div className="ntrow" key={n.id} title="点击打开这条笔记">
+                <button className="ntmain" onClick={() => onOpenNote(n.id)}>
+                  {n.pinned && <i className="pinmark">📌</i>}
+                  <span className="ntt">{n.title}</span>
+                  <i className="ntc">{n.assetCount} 图</i>
+                </button>
+                <button
+                  className="ntx"
+                  title="从这条笔记里移除本图（笔记与图片都保留）"
+                  onClick={() => onUnlink(n.id, selected.id)}
+                >×</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="dim">还没有笔记引用这张图。</div>
+        )}
+      </div>
+
+      <div className="sect">
+        <div className="sh"><span>NEW / 新建</span></div>
+        <button
+          className="ntnew"
+          title="建一条新笔记，并把当前这张图关联进去当插图"
+          onClick={() => onCreateAndLink(selected.id)}
+        >
+          ＋ 新建笔记并关联此图
+        </button>
+        <div className="hint">笔记标题会带上图片名，方便回头找。</div>
+      </div>
+    </div>
+  );
+}
+
 export function Dock({
   stats, count, label, selected, cats, tree, busy, editSignal, worksets,
   onFav, onCopy, onReveal, onRemove, onCategory, onSubCategory, onDragOut, onRename,
   onTags, onColorClick, onSimilar, onPin, onAddToWorkset, onRemoveFromWorkset, onSendToPs,
+  noteRev, onUnlinkNote, onCreateNoteForAsset, onOpenNote,
   dockTab, onTab
 }: {
   stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; tree: Tree; busy: string;
@@ -71,6 +139,11 @@ export function Dock({
   onAddToWorkset: (id: string, wsId: string) => void;
   onRemoveFromWorkset: (id: string, wsId: string) => void;
   onSendToPs: (id: string) => void;
+  /** 笔记关联关系的版本号：任何增删改后 App 侧 +1，本 Tab 跟着重查 */
+  noteRev: number;
+  onUnlinkNote: (noteId: string, assetId: string) => void;
+  onCreateNoteForAsset: (assetId: string) => void;
+  onOpenNote: (noteId: string) => void;
   /** 当前激活的 Dock Tab（prefs.dockTab，已过 sanitizeDockTab 校验） */
   dockTab: string;
   onTab: (id: string) => void;
@@ -143,10 +216,27 @@ export function Dock({
   }
 
   /* EXTENSION-DOCK-TAB: 右栏面板按注册制渲染成 Tab。
-     未来「笔记」「采集」各成一个 Tab：在 layout-registry.ts 的 dockTabs 里注册（order 定排位），
-     再在这里补一个 id 分支返回对应面板；检查器全部内容（预览 / BOARDS / 直送 PS 按钮组）
-     原样平移进第一个 Tab，没有删减。激活态存 prefs.dockTab。 */
+     检查器全部内容（预览 / BOARDS / 直送 PS 按钮组）在第一个 Tab，笔记 Tab（NOTES）
+     展示当前图关联的笔记；再加新 Tab 时在这里补一个 id 分支返回对应面板。
+     激活态存 prefs.dockTab。 */
   const tabPane = (id: string) => {
+    if (id === 'notes') {
+      return selected
+        ? <NotePane
+            selected={selected}
+            noteRev={noteRev}
+            onUnlink={onUnlinkNote}
+            onCreateAndLink={onCreateNoteForAsset}
+            onOpenNote={onOpenNote}
+          />
+        : (
+          <div className="dbody">
+            <div className="numsub">NOTES / 笔记</div>
+            <div className="rule" />
+            <div className="tip">选中一张图，这里显示引用它的笔记；也可以一键新建笔记并把它关联进去。</div>
+          </div>
+        );
+    }
     if (id !== 'inspector') return null;
     return (
       <>

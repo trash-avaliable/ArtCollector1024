@@ -519,6 +519,19 @@ ipcMain.handle('workset:remove-items', (e, { id, ids }) => store.removeWorksetIt
 ipcMain.handle('workset:items', (e, id) => store.worksetItems(id).map(plainItem));
 ipcMain.handle('workset:for-asset', (e, assetId) => store.worksetsFor(assetId));
 
+/* ---- 笔记：给参考图配文字，可独立存在，也可关联库内图片当插图 ---- */
+ipcMain.handle('note:list', () => store.noteList());
+ipcMain.handle('note:get', (e, id) => store.noteGet(id));
+ipcMain.handle('note:create', (e, title) => store.noteCreate(title));
+ipcMain.handle('note:update', (e, { id, title, content }) => store.noteUpdate(id, { title, content }));
+ipcMain.handle('note:delete', (e, id) => store.noteDelete(id));
+ipcMain.handle('note:pin', (e, id) => store.notePin(id));
+ipcMain.handle('note:link', (e, { id, ids }) => store.noteLink(id, ids));
+ipcMain.handle('note:unlink', (e, { id, ids }) => store.noteUnlink(id, ids));
+ipcMain.handle('note:assets', (e, id) => store.noteAssets(id).map(plainItem));
+ipcMain.handle('note:for-asset', (e, assetId) => store.notesForAsset(assetId));
+ipcMain.handle('note:search', (e, query) => store.noteSearch(query));
+
 /* ---- 多选批量 ---- */
 ipcMain.handle('lib:remove-many', (e, ids) => ({ n: store.removeMany(ids), stats: store.stats() }));
 ipcMain.handle('lib:restore-many', (e, ids) => ({ n: store.restoreMany(ids), stats: store.stats() }));

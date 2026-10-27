@@ -322,8 +322,8 @@ test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面
   })()`;
   const a = await runElectron({ js: jsA, shot: 'layout-01-default.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('shared'), extraEnv: envOf('shared') });
   assert.equal(a.jsResult.added, specs.length, '全部图片导入成功');
-  assert.deepEqual(a.jsResult.secs, ['views', 'categories', 'boards'], '左栏三个默认 Section 按 order 渲染');
-  assert.deepEqual(a.jsResult.tabs, ['INSPECTOR检查器'], '选中图片后右栏出现检查器 Tab');
+  assert.deepEqual(a.jsResult.secs, ['views', 'categories', 'boards', 'notes'], '左栏四个默认 Section 按 order 渲染（RTM-S24 笔记分区就位）');
+  assert.deepEqual(a.jsResult.tabs, ['INSPECTOR检查器', 'NOTES笔记'], '选中图片后右栏出现检查器 + 笔记两个 Tab');
   assert.ok(a.jsResult.spine, 'Esc 清选后 dock 回到 56px 脊柱态');
   assert.ok(a.jsResult.fab, '问询 FAB 存在');
   assert.equal(a.jsResult.cards, specs.length, '瀑布流卡片挂载');
@@ -345,7 +345,7 @@ test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面
   const b = await runElectron({ js: jsB, shot: 'layout-02-rail-mini.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b'), extraEnv: envOf('b') });
   assert.ok(b.jsResult.mini, 'rail 挂上 .mini');
   assert.equal(b.jsResult.railw, 'mini', 'app 网格切到 56px 图标轨');
-  assert.equal(b.jsResult.icons, 3, '三个分区各一个图标入口');
+  assert.equal(b.jsResult.icons, 4, '四个分区各一个图标入口（含 RTM-S24 笔记）');
   assert.ok(b.jsResult.bodyGone, '全宽内容体已隐藏');
   assert.ok(b.jsResult.foldBtnInHead, '头部保留展开按钮（图标轨态仍可一键展开）');
 

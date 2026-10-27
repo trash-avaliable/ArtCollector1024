@@ -80,6 +80,19 @@ contextBridge.exposeInMainWorld('api', {
     items: (id) => ipcRenderer.invoke('workset:items', id),
     forAsset: (assetId) => ipcRenderer.invoke('workset:for-asset', assetId)
   },
+  note: {
+    list: () => ipcRenderer.invoke('note:list'),
+    get: (id) => ipcRenderer.invoke('note:get', id),
+    create: (title) => ipcRenderer.invoke('note:create', title),
+    update: (payload) => ipcRenderer.invoke('note:update', payload),
+    delete: (id) => ipcRenderer.invoke('note:delete', id),
+    pin: (id) => ipcRenderer.invoke('note:pin', id),
+    link: (id, ids) => ipcRenderer.invoke('note:link', { id, ids }),
+    unlink: (id, ids) => ipcRenderer.invoke('note:unlink', { id, ids }),
+    assets: (id) => ipcRenderer.invoke('note:assets', id),
+    forAsset: (assetId) => ipcRenderer.invoke('note:for-asset', assetId),
+    search: (query) => ipcRenderer.invoke('note:search', query)
+  },
   // 置顶窗自己的极简入口（pin.html 只用到这两个）
   pinWin: {
     close: () => ipcRenderer.send('pin:close')

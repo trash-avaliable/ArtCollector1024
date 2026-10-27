@@ -65,14 +65,15 @@ export type RailSectionDef = {
 export const railSections: Registry<RailSectionDef> = createRegistry<RailSectionDef>('rail-section');
 
 // EXTENSION-RAIL-SECTION: 左栏分区注册制。
-// 未来加「笔记 / 采集历史」分区，只需两步：
+// 再加新分区，只需两步：
 //   1) 在这里追加一行注册（order 决定排位，建议 10/20/30/40... 递增）：
-//        railSections.register({ id: 'notes', en: 'NOTES', cn: '笔记', icon: 'M...', order: 40 });
+//        railSections.register({ id: '采集', en: 'CAPTURE', cn: '采集历史', icon: 'M...', order: 50 });
 //   2) 在 Rail.tsx 的 sectionBody(id) 里给出该 id 的渲染体（一个返回 JSX 的分支）。
 // 折叠状态会自动按 id 存进 prefs.railCollapsed，图标轨会自动获得该分区的入口，无需额外接线。
 railSections.register({ id: 'views', en: 'VIEW', cn: '视图', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', order: 10 });
 railSections.register({ id: 'categories', en: 'CATEGORY', cn: '分类', icon: 'M4 5h5l2 2h9v12H4zM4 5V3h6', order: 20 });
 railSections.register({ id: 'boards', en: 'BOARDS', cn: '画板', icon: 'M4 4h16v12H4zM8 20h8M12 16v4', order: 30 });
+railSections.register({ id: 'notes', en: 'NOTES', cn: '笔记', icon: 'M5 4h14v16H5zM8 9h8M8 13h8M8 17h5', order: 40 });
 
 /* ================= 右栏 Dock Tab ================= */
 
@@ -86,12 +87,13 @@ export type DockTabDef = {
 export const dockTabs: Registry<DockTabDef> = createRegistry<DockTabDef>('dock-tab');
 
 // EXTENSION-DOCK-TAB: 右栏 Tab 注册制。
-// 未来「笔记」「采集」各成一个 Tab，同样两步：
+// 再加新 Tab（如「采集」），同样两步：
 //   1) 在这里追加注册（order 决定 Tab 排位）：
-//        dockTabs.register({ id: 'notes', en: 'NOTES', cn: '笔记', order: 20 });
+//        dockTabs.register({ id: 'capture', en: 'CAPTURE', cn: '采集', order: 30 });
 //   2) 在 Dock.tsx 的 tabPane(tabId) 里给出该 id 的面板内容。
 // 激活中的 Tab id 存 prefs.dockTab（经 sanitizeDockTab 校验，未知 id 自动回落到第一个 Tab）。
 dockTabs.register({ id: 'inspector', en: 'INSPECTOR', cn: '检查器', order: 10 });
+dockTabs.register({ id: 'notes', en: 'NOTES', cn: '笔记', order: 20 });
 
 /* ================= 命令面板（Ctrl+K） ================= */
 
@@ -115,10 +117,10 @@ export type CommandEntry = { def: CommandDef; run: () => void };
 export const commands: Registry<CommandDef> = createRegistry<CommandDef>('command');
 
 // EXTENSION-COMMAND: 命令面板动作注册制。
-// 未来任何功能（笔记搜索、网页采集、问询…）想进 Ctrl+K，只需在这里注册一条 def，
-// 再在 App.tsx 的 commandHandlers 里补一个同 id 的动作即可：
+// 再加任何功能的命令，只需在这里注册一条 def，
+// 再在 App.tsx 的 commandHandlers 里补一个同 id 的动作即可（例）：
 //   commands.register({ id: 'act.capture', title: '打开网页采集器', group: 'action', keywords: ['capture','caiji'], order: 120 });
-// 动态条目（分类 / 画板）不进这个注册表，由 App 按当前库内容即时拼装。
+// 动态条目（分类 / 画板 / 笔记）不进这个注册表，由 App 按当前库内容即时拼装。
 commands.register({ id: 'view.all', title: '跳转：全部素材', group: 'view', keywords: ['all', 'quanbu', 'qb'], order: 10 });
 commands.register({ id: 'view.inbox', title: '跳转：待分类', group: 'view', keywords: ['inbox', 'daifenlei', 'dfl'], order: 11 });
 commands.register({ id: 'view.fav', title: '跳转：收藏', group: 'view', keywords: ['fav', 'shoucang', 'sc'], order: 12 });
@@ -126,6 +128,7 @@ commands.register({ id: 'view.recent', title: '跳转：最近浏览', group: 'v
 commands.register({ id: 'view.trash', title: '跳转：回收站', group: 'view', keywords: ['trash', 'huishouzhan', 'hsz'], order: 14 });
 commands.register({ id: 'act.import', title: '导入图片 / 文件夹', group: 'action', keywords: ['import', 'daoru', 'dr'], order: 100 });
 commands.register({ id: 'act.capture', title: '网页采集：一句话找参考图', group: 'action', keywords: ['capture', 'crawler', 'caiji', 'cj', '采集'], order: 105 });
+commands.register({ id: 'act.notes', title: '打开笔记', group: 'action', keywords: ['note', 'notes', 'biji', 'bj', '笔记'], order: 106 });
 commands.register({ id: 'act.settings', title: '库设置', group: 'action', keywords: ['settings', 'shezhi', 'sz'], order: 110 });
 commands.register({ id: 'layout.rail-mini', title: '切换：左栏图标轨', group: 'layout', keywords: ['rail', 'mini', 'zuoLan', 'zld'], order: 200 });
 commands.register({ id: 'layout.dock-hidden', title: '切换：收起右栏检查器', group: 'layout', keywords: ['dock', 'shouqi', 'sq'], order: 201 });

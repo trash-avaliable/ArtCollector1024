@@ -1315,3 +1315,173 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 }
 .btn-capture:hover { border-color: var(--ink); }
 .btn-capture svg { stroke: var(--ink-2); fill: none; }
+
+/* ================= RTM-S24：笔记系统 ================= */
+
+/* 置顶小旗（左栏笔记行 / 笔记列表 / 检查器笔记 Tab 共用） */
+.pinmark {
+  font-style: normal; font-size: 10px; line-height: 1; margin-right: 5px; vertical-align: 1px;
+  filter: saturate(.85);
+}
+
+/* 左栏 NOTES 分区：行复用 .cat 外观，无拖放，去掉箭头列 */
+.cat.note { grid-template-columns: 1fr auto auto; }
+.cat.note .nm { flex: 1; min-width: 0; }
+.notelist { max-height: 40%; overflow-y: auto; }
+.notelist::-webkit-scrollbar { width: 6px; }
+.notelist::-webkit-scrollbar-thumb { background: var(--line-2); }
+
+/* ---------- stage 笔记视图：左列列表 + 右侧编辑器 ---------- */
+.noteview {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: 264px minmax(0, 1fr);
+}
+.nv-side {
+  min-height: 0; display: flex; flex-direction: column;
+  background: var(--panel-2); border-right: 1px solid var(--line);
+}
+.nv-sidehead {
+  flex: 0 0 46px; display: flex; align-items: center; padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.nv-title-lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--muted-2); }
+.nv-add {
+  margin-left: auto; width: 24px; height: 24px; display: grid; place-items: center;
+  font-size: 14px; color: var(--muted-2); border: 1px solid transparent;
+  transition: color var(--direct) var(--ease), border-color var(--direct) var(--ease);
+}
+.nv-add:hover { color: var(--ink); border-color: var(--line-2); }
+.nv-search {
+  margin: 10px 10px 8px; flex: 0 0 32px; display: flex; align-items: center; gap: 7px; padding: 0 9px;
+  background: #fff; border: 1px solid var(--line-2);
+  transition: border-color var(--direct) var(--ease);
+}
+.nv-search:focus-within { border-color: var(--ink); box-shadow: inset 0 -2px 0 var(--signal); }
+.nv-search svg { stroke: var(--muted); fill: none; flex: 0 0 auto; }
+.nv-search input { flex: 1; min-width: 0; height: 100%; font-size: 12px; }
+.nv-search input::placeholder { color: var(--muted-2); }
+.nv-clear { font-size: 13px; color: var(--muted-2); }
+.nv-clear:hover { color: var(--ink); }
+
+.nv-list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 10px; }
+.nv-list::-webkit-scrollbar { width: 6px; }
+.nv-list::-webkit-scrollbar-thumb { background: var(--line-2); }
+.nvrow {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  min-height: 34px; margin: 0 8px 1px; padding: 5px 8px 5px 12px;
+  font-size: 12.5px; color: var(--ink-2); border-left: 2px solid transparent;
+  transition: background var(--direct) var(--ease), border-color var(--direct) var(--ease), color var(--direct) var(--ease);
+}
+.nvrow:hover { background: rgba(26, 28, 23, .055); color: var(--ink); }
+.nvrow.on { background: var(--ink); color: #fff; border-left-color: var(--signal); }
+.nvrow .nvt {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nvrow .nvm { flex: 0 0 auto; display: flex; align-items: center; gap: 3px; opacity: 0; transition: opacity var(--direct) var(--ease); }
+.nvrow:hover .nvm, .nvrow.on .nvm { opacity: 1; }
+.nvrow .nvimgn {
+  font-style: normal; font-family: var(--mono); font-size: 9.5px; color: var(--muted-2);
+  border: 1px solid var(--line-2); padding: 1px 4px; margin-right: 3px;
+}
+.nvrow.on .nvimgn { color: var(--signal); border-color: rgba(255, 250, 0, .35); }
+.nvrow .nvpin, .nvrow .nvdel { font-size: 11px; color: var(--muted-2); width: 16px; height: 16px; display: grid; place-items: center; }
+.nvrow .nvpin:hover, .nvrow .nvdel:hover { color: var(--ink); }
+.nvrow.on .nvpin, .nvrow.on .nvdel { color: rgba(255, 255, 255, .6); }
+.nvrow.on .nvpin:hover, .nvrow.on .nvdel:hover { color: #fff; }
+.nv-empty { padding: 18px 14px; font-size: 11.5px; color: var(--muted-3); }
+
+.nv-edit { min-height: 0; overflow-y: auto; padding: 18px 22px 40px; background: var(--bg); }
+.nv-edit::-webkit-scrollbar { width: 10px; }
+.nv-edit::-webkit-scrollbar-thumb { background: var(--line-2); border: 3px solid var(--bg); }
+.nv-none { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
+.nv-none .t { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; }
+.nv-none .h { font-size: 12.5px; }
+
+.nv-headline {
+  width: 100%; height: 40px; padding: 0 2px; font-size: 19px; font-weight: 600; letter-spacing: .02em;
+  color: var(--ink); background: transparent; border-bottom: 2px solid var(--line-2);
+  transition: border-color var(--direct) var(--ease);
+}
+.nv-headline:focus { border-bottom-color: var(--signal); outline: none; }
+.nv-headline::placeholder { color: var(--muted-3); }
+.nv-status {
+  margin-top: 7px; display: flex; gap: 14px; font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: .08em; color: var(--muted-3);
+}
+.nv-status .ok { color: #2e7d32; }
+
+.nv-body {
+  margin-top: 14px; width: 100%; min-height: 240px; resize: vertical;
+  padding: 12px 14px; font-family: var(--ui); font-size: 13px; line-height: 1.9; color: var(--ink-2);
+  background: var(--panel); border: 1px solid var(--line-2);
+  transition: border-color var(--direct) var(--ease);
+}
+.nv-body:focus { border-color: var(--ink); outline: none; }
+.nv-body::placeholder { color: var(--muted-3); }
+
+/* 关联图片：chips 网格（缩略图 + × 移除，点击开灯箱）+ 添加插图搜索 */
+.nv-assets { margin-top: 22px; }
+.nv-ah { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.nv-ah b { font-size: 12.5px; letter-spacing: .04em; }
+.nv-ah span { font-size: 10.5px; color: var(--muted-2); }
+.nvgrid { display: flex; flex-wrap: wrap; gap: 10px; }
+.nvchip { position: relative; margin: 0; width: 128px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--sh-1); }
+.nvchip:hover { border-color: var(--line-2); box-shadow: var(--sh-2); }
+.nvthumb { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: var(--panel); }
+.nvthumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 220ms var(--ease); }
+.nvchip:hover .nvthumb img { transform: scale(1.04); }
+.nvchip .animchip { pointer-events: auto; }
+.nvx {
+  position: absolute; top: 0; right: 0; z-index: 3; width: 20px; height: 20px;
+  display: grid; place-items: center; font-size: 13px; line-height: 1;
+  background: rgba(20, 22, 15, .82); color: #fff;
+  opacity: 0; transition: opacity var(--direct) var(--ease), background var(--direct) var(--ease);
+}
+.nvchip:hover .nvx { opacity: 1; }
+.nvx:hover { background: #8f2020; }
+.nvchip figcaption {
+  padding: 5px 7px; font-size: 10px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nv-dim { font-size: 11.5px; color: var(--muted-2); padding: 4px 0; }
+
+.nv-finder { margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--line-2); }
+.nvres { display: flex; flex-direction: column; border: 1px solid var(--line); background: var(--panel); }
+.nvresitem {
+  display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 10px; text-align: left;
+  border-bottom: 1px solid var(--line);
+  transition: background var(--direct) var(--ease);
+}
+.nvresitem:last-child { border-bottom: none; }
+.nvresitem:hover { background: rgba(26, 28, 23, .05); }
+.nvresitem img { width: 40px; height: 30px; object-fit: cover; border: 1px solid var(--line); flex: 0 0 auto; }
+.nvresitem span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink-2); }
+.nvresitem i { font-style: normal; font-size: 13px; color: var(--muted-2); }
+.nvresitem:hover i { color: var(--ink); }
+
+/* ---------- 检查器「笔记」Tab ---------- */
+.notetab .pvname { margin-top: 0; }
+.ntlist { display: flex; flex-direction: column; gap: 5px; }
+.ntrow { display: flex; align-items: stretch; gap: 4px; }
+.ntrow .ntmain {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .18);
+  font-size: 11.5px; color: rgba(255, 255, 255, .85); text-align: left;
+  transition: background var(--direct) var(--ease), border-color var(--direct) var(--ease);
+}
+.ntrow .ntmain:hover { background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .4); }
+.ntrow .ntt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ntrow .ntc { flex: 0 0 auto; font-style: normal; font-family: var(--mono); font-size: 9.5px; color: rgba(255, 255, 255, .4); }
+.ntrow .ntx {
+  flex: 0 0 24px; font-size: 13px; color: rgba(255, 255, 255, .45);
+  border: 1px solid rgba(255, 255, 255, .14);
+  transition: color var(--direct) var(--ease), border-color var(--direct) var(--ease), background var(--direct) var(--ease);
+}
+.ntrow .ntx:hover { color: #fff; border-color: #c73b3b; background: #8f2020; }
+.ntnew {
+  width: 100%; height: 36px; font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  background: var(--grad-signal); color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(26, 28, 23, .28);
+  transition: transform var(--direct) var(--ease), box-shadow var(--direct) var(--ease);
+}
+.ntnew:hover { transform: translateY(-1px); }
+.notetab .hint { margin-top: 8px; }

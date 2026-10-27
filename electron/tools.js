@@ -312,7 +312,46 @@ class LibraryTools {
         FROM worksets w JOIN workset_items wi ON wi.workset_id = w.id
         WHERE wi.asset_id = ?
         ORDER BY wi.added_at DESC`),
-      liveById: db.prepare('SELECT id FROM assets WHERE id = ? AND deleted_at = 0')
+      liveById: db.prepare('SELECT id FROM assets WHERE id = ? AND deleted_at = 0'),
+      /* ---- 笔记 ---- */
+      noteList: db.prepare(`
+        SELECT n.*,
+          (SELECT COUNT(*) FROM note_links nl
+             JOIN assets a ON a.id = nl.asset_id AND a.deleted_at = 0
+            WHERE nl.note_id = n.id) AS asset_count
+        FROM notes n
+        ORDER BY n.pinned DESC, n.updated_at DESC, n.rowid DESC`),
+      noteById: db.prepare('SELECT * FROM notes WHERE id = ?'),
+      noteByIdFull: db.prepare(`
+        SELECT n.*,
+          (SELECT COUNT(*) FROM note_links nl
+             JOIN assets a ON a.id = nl.asset_id AND a.deleted_at = 0
+            WHERE nl.note_id = n.id) AS asset_count
+        FROM notes n WHERE n.id = ?`),
+      noteInsert: db.prepare('INSERT INTO notes (id, title, content, pinned, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)'),
+      noteDelete: db.prepare('DELETE FROM notes WHERE id = ?'),
+      noteSetTitle: db.prepare('UPDATE notes SET title = ?, updated_at = ? WHERE id = ?'),
+      noteSetContent: db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?'),
+      noteSetPin: db.prepare('UPDATE notes SET pinned = ?, updated_at = ? WHERE id = ?'),
+      notePinOf: db.prepare('SELECT pinned FROM notes WHERE id = ?'),
+      noteLinkAdd: db.prepare('INSERT OR IGNORE INTO note_links (note_id, asset_id, added_at) VALUES (?, ?, ?)'),
+      noteLinkDel: db.prepare('DELETE FROM note_links WHERE note_id = ? AND asset_id = ?'),
+      noteAssets: db.prepare(`
+        SELECT a.* FROM note_links nl
+          JOIN assets a ON a.id = nl.asset_id AND a.deleted_at = 0
+        WHERE nl.note_id = ?
+        ORDER BY nl.added_at DESC, a.rowid DESC`),
+      noteAssetIds: db.prepare('SELECT asset_id FROM note_links WHERE note_id = ?'),
+      notesForAsset: db.prepare(`
+        SELECT n.*, nl.added_at AS linked_at,
+          (SELECT COUNT(*) FROM note_links nl2
+             JOIN assets a2 ON a2.id = nl2.asset_id AND a2.deleted_at = 0
+            WHERE nl2.note_id = n.id) AS asset_count
+        FROM note_links nl
+          JOIN notes n ON n.id = nl.note_id
+        WHERE nl.asset_id = ?
+        ORDER BY nl.added_at DESC, n.rowid DESC`),
+      noteTouch: db.prepare('UPDATE notes SET updated_at = ? WHERE id = ?')
     };
   }
 
@@ -1065,6 +1104,145 @@ class LibraryTools {
   /** 一张图在哪些画板里 */
   worksetsFor(assetId) {
     return this.q.wsForAsset.all(assetId);
+  }
+
+  /* ---------- 笔记：独立文字笔记 + 关联库内图片当插图。删笔记不动图，删图 CASCADE 清关联 ---------- */
+
+  /** 笔记行 → 渲染层对象（content 全量随行；左栏只展示 title，编辑器直接用） */
+  toNote(r) {
+    return {
+      id: r.id,
+      title: r.title,
+      content: r.content || '',
+      pinned: !!r.pinned,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      assetCount: r.asset_count || 0,
+      linkedAt: r.linked_at || 0
+    };
+  }
+
+  /** 笔记列表：置顶优先，再按 updated_at 倒序；每条带未进回收站的关联图片数 */
+  noteList() {
+    return this.q.noteList.all().map((r) => this.toNote(r));
+  }
+
+  noteGet(id) {
+    const r = this.q.noteByIdFull.get(id);
+    return r ? this.toNote(r) : null;
+  }
+
+  noteCreate(rawTitle, content = '') {
+    const title = String(rawTitle || '').trim().replace(/\s+/g, ' ');
+    if (!title) return { error: '笔记标题不能为空' };
+    if (title.length > 90) return { error: '笔记标题太长了（最多 90 字）' };
+    const now = Date.now();
+    const id = crypto.randomBytes(8).toString('hex');
+    this.q.noteInsert.run(id, title, String(content || ''), now, now);
+    return this.noteGet(id);
+  }
+
+  /** noteUpdate：title / content 可只传其一；updated_at 自动推进。返回 null = 笔记不存在 */
+  noteUpdate(id, patch = {}) {
+    if (!this.q.noteById.get(id)) return null;
+    const now = Date.now();
+    if (patch.title !== undefined) {
+      const title = String(patch.title || '').trim().replace(/\s+/g, ' ');
+      if (!title) return { error: '笔记标题不能为空' };
+      if (title.length > 90) return { error: '笔记标题太长了（最多 90 字）' };
+      this.q.noteSetTitle.run(title, now, id);
+    }
+    if (patch.content !== undefined) {
+      this.q.noteSetContent.run(String(patch.content ?? ''), now, id);
+    }
+    return this.noteGet(id);
+  }
+
+  /** 删笔记：只删 notes 行（CASCADE 清 note_links），assets 一概不碰 */
+  noteDelete(id) {
+    const r = this.q.noteById.get(id);
+    if (!r) return { ok: false, error: '笔记不存在' };
+    this.q.noteDelete.run(id);
+    return { ok: true };
+  }
+
+  /** 置顶 / 取消置顶（toggle） */
+  notePin(id) {
+    const r = this.q.notePinOf.get(id);
+    if (!r) return null;
+    const pinned = r.pinned ? 0 : 1;
+    this.q.noteSetPin.run(pinned, Date.now(), id);
+    return { id, pinned: !!pinned };
+  }
+
+  /**
+   * 关联图片进笔记：INSERT OR IGNORE 幂等，重复关联不报错也不重复计数；
+   * 不存在 / 已进回收站的图不进关联。实际新增时推进笔记的 updated_at。
+   */
+  noteLink(noteId, assetIds) {
+    const note = this.q.noteById.get(noteId);
+    if (!note) return { added: 0, error: '笔记不存在' };
+    let added = 0;
+    const now = Date.now();
+    this.tx(() => {
+      for (const aid of assetIds || []) {
+        if (!this.q.liveById.get(aid)) continue;
+        const n = this.q.noteLinkAdd.run(noteId, aid, now).changes || 0;
+        added += n;
+      }
+      if (added) this.q.noteTouch.run(now, noteId);
+    });
+    return { added };
+  }
+
+  /** 取消关联：DELETE 幂等，重复删不报错 */
+  noteUnlink(noteId, assetIds) {
+    const note = this.q.noteById.get(noteId);
+    if (!note) return { removed: 0, error: '笔记不存在' };
+    let removed = 0;
+    this.tx(() => {
+      for (const aid of assetIds || []) {
+        removed += this.q.noteLinkDel.run(noteId, aid).changes || 0;
+      }
+      if (removed) this.q.noteTouch.run(Date.now(), noteId);
+    });
+    return { removed };
+  }
+
+  /** 笔记里的插图：复用 toItem，只回没进回收站的，按关联时间倒序 */
+  noteAssets(noteId) {
+    if (!this.q.noteById.get(noteId)) return [];
+    const rows = this.q.noteAssets.all(noteId);
+    const tags = this.tagsFor(rows.map((r) => r.id));
+    return rows.map((r) => this.toItem(r, tags.get(r.id) || []));
+  }
+
+  /** 一张图被哪些笔记引用（检查器「笔记」Tab 用） */
+  notesForAsset(assetId) {
+    return this.q.notesForAsset.all(assetId).map((r) => this.toNote(r));
+  }
+
+  /**
+   * 笔记搜索：title + content 子串，加拼音全拼 / 首字母。
+   * 拼音在运行时用 pinyin-pro 现转（不建列、不落库），正文截前 2000 字防长文拖慢。
+   */
+  noteSearch(rawQuery) {
+    const all = this.noteList();
+    const q = String(rawQuery || '').trim().toLowerCase();
+    if (!q) return all;
+    const out = [];
+    for (const n of all) {
+      if (n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)) {
+        out.push(n);
+        continue;
+      }
+      const hay = (n.title + ' ' + n.content.slice(0, 2000));
+      const full = py(hay);
+      if (full && full.includes(q)) { out.push(n); continue; }
+      const init = pyInit(hay);
+      if (init && init.includes(q)) out.push(n);
+    }
+    return out;
   }
 }
 
