@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -27,7 +27,10 @@ CREATE TABLE IF NOT EXISTS assets (
   py TEXT NOT NULL DEFAULT '',
   py_init TEXT NOT NULL DEFAULT '',
   cat_py TEXT NOT NULL DEFAULT '',
-  cat_py_init TEXT NOT NULL DEFAULT ''
+  cat_py_init TEXT NOT NULL DEFAULT '',
+  clip_cat TEXT NOT NULL DEFAULT '',
+  clip_score REAL NOT NULL DEFAULT -1,
+  clip_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_assets_added ON assets(added_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assets_cat ON assets(category, subcategory);
@@ -87,6 +90,15 @@ function openDatabase(root) {
   for (const c of ['crop_l', 'crop_t', 'crop_r', 'crop_b']) {
     if (!cols.includes(c)) {
       db.exec(`ALTER TABLE assets ADD COLUMN ${c} INTEGER NOT NULL DEFAULT -1`);
+    }
+  }
+  // v4 -> v5：CLIP 零样本分类的 AI 建议（不直接改分类，只在检查器里提示，用户手动采用）
+  for (const c of ['clip_cat', 'clip_score', 'clip_at']) {
+    if (!cols.includes(c)) {
+      const def = c === 'clip_cat'
+        ? "TEXT NOT NULL DEFAULT ''"
+        : c === 'clip_score' ? 'REAL NOT NULL DEFAULT -1' : 'INTEGER NOT NULL DEFAULT 0';
+      db.exec(`ALTER TABLE assets ADD COLUMN ${c} ${def}`);
     }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_assets_live ON assets(deleted_at)');

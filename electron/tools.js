@@ -166,6 +166,7 @@ class LibraryTools {
       setPaletteAt: db.prepare('UPDATE assets SET palette_at = ? WHERE id = ?'),
       setCategory: db.prepare('UPDATE assets SET category = ?, subcategory = ?, cat_py = ?, cat_py_init = ? WHERE id = ?'),
       setFav: db.prepare('UPDATE assets SET favorite = ? WHERE id = ?'),
+      setClip: db.prepare('UPDATE assets SET clip_cat = ?, clip_score = ?, clip_at = ? WHERE id = ?'),
       setUsed: db.prepare('UPDATE assets SET used_at = ? WHERE id = ?'),
       del: db.prepare('DELETE FROM assets WHERE id = ?'),
       backfill: db.prepare('SELECT * FROM assets WHERE palette_at = 0 LIMIT ?')
@@ -186,6 +187,8 @@ class LibraryTools {
       addedAt: r.added_at, usedAt: r.used_at, category: r.category, subcategory: r.subcategory,
       tags, source: r.source, sourceUrl: r.source_url, fname: r.fname || '',
       deletedAt: r.deleted_at || 0,
+      // CLIP 零样本分类的 AI 建议（clip_cat 为空 = 没跑过 / 低于阈值没写入）
+      clipCat: r.clip_cat || '', clipScore: r.clip_score ?? -1,
       favorite: !!r.favorite, hasThumb: !!r.has_thumb,
       _py: r.py, _init: r.py_init, _cpy: r.cat_py, _cinit: r.cat_py_init
     };
@@ -536,6 +539,13 @@ class LibraryTools {
       }
     });
     return n;
+  }
+
+  /** 记下 CLIP 的 AI 建议（只写建议字段，分类本身不动，用户在检查器里手动采用） */
+  setClip(id, category, score) {
+    if (!this.getById(id)) return false;
+    this.q.setClip.run(category || '', score ?? -1, Date.now(), id);
+    return true;
   }
 
   /** 分类改名：同时改所有素材上的分类字段 */

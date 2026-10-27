@@ -8,13 +8,24 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { store, TREE, IMAGE_EXT } = require('./store');
 const { startBridge, PORT: BRIDGE_PORT } = require('./bridge');
+const { ClipEngine } = require('./clip');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
 // 扩展必须放在 asar 外（用户要在资源管理器里选中它加载），打包后落在 resources/extension
 const EXT_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'extension')
   : path.join(__dirname, '..', 'extension');
+// CLIP 模型目录：开发时放工作副本外的共用目录（多份工作副本共享，避免重复下 85MB+），
+// 打包后放 userData，绝不进安装包
+const CLIP_MODELS_DIR = process.env.RC_MODELS
+  || (app.isPackaged ? path.join(app.getPath('userData'), 'models') : path.join(path.dirname(app.getAppPath()), '.rc-models'));
+const clipEngine = new ClipEngine({ modelsDir: CLIP_MODELS_DIR });
 const isDev = !!process.env.VITE_DEV;
+
+// 测试钩子：冒烟测试用独立 userData（隔离 config.json 里的分类树与令牌），绝不碰真实配置
+if (process.env.RC_USER_DATA) {
+  try { app.setPath('userData', path.resolve(process.env.RC_USER_DATA)); } catch { }
+}
 
 if (process.env.RC_NOGPU === '1') {
   try { app.disableHardwareAcceleration(); } catch { }
@@ -398,7 +409,8 @@ ipcMain.handle('lib:list', (e, opts) => {
     addedAt: it.addedAt, usedAt: it.usedAt, category: it.category,
     subcategory: it.subcategory, tags: it.tags, source: it.source,
     sourceUrl: it.sourceUrl, favorite: it.favorite, ext: it.ext,
-    hasThumb: it.hasThumb, deletedAt: it.deletedAt, simScore: it.simScore
+    hasThumb: it.hasThumb, deletedAt: it.deletedAt, simScore: it.simScore,
+    clipCat: it.clipCat || '', clipScore: it.clipScore ?? -1
   }));
 });
 
@@ -449,6 +461,34 @@ ipcMain.handle('lib:purge-all', async () => ({ n: await store.purgeAll(), stats:
 ipcMain.handle('lib:similar', (e, { id, limit }) => store.similar(id, limit || 24));
 ipcMain.handle('lib:set-category-many', (e, { ids, category, subcategory }) => store.setCategoryMany(ids, category, subcategory || ''));
 ipcMain.handle('lib:toggle-fav-many', (e, { ids, value }) => store.toggleFavMany(ids, value));
+
+/* ---- CLIP 零样本 AI 分类：算 embedding → 余弦 top-1 → ≥0.22 才写库，进度走 clip:progress ---- */
+let clipClassifyRunning = false;
+ipcMain.handle('clip:classify', async (e, ids) => {
+  const sender = e.sender;
+  const list = (Array.isArray(ids) ? ids : []).filter((x) => typeof x === 'string');
+  if (!list.length) return { total: 0, adopted: 0, items: [] };
+  if (clipClassifyRunning) return { error: 'AI 分类正在进行中，请等这批跑完' };
+  clipClassifyRunning = true;
+  try {
+    // 传当前分类树（config 里用户自定义过的优先），engine 会按树缓存文本 embedding
+    const tree = store.getCats() || TREE;
+    return await clipEngine.classifyIds(store.tools, list, tree, {
+      onProgress: (p) => {
+        if (!sender.isDestroyed()) sender.send('clip:progress', p);
+      }
+    });
+  } catch (err) {
+    console.error('clip classify failed', err);
+    return { error: (err && err.message) || String(err) };
+  } finally {
+    clipClassifyRunning = false;
+  }
+});
+ipcMain.handle('clip:status', () => ({
+  modelsDir: CLIP_MODELS_DIR,
+  modelsReady: clipEngine.modelsReady()
+}));
 
 ipcMain.handle('lib:set-tags', (e, { id, tags }) => {
   const it = store.setTags(id, tags);

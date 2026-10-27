@@ -72,10 +72,15 @@ contextBridge.exposeInMainWorld('api', {
     info: () => ipcRenderer.invoke('bridge:info'),
     openExt: () => ipcRenderer.invoke('bridge:open-ext')
   },
+  clip: {
+    classify: (ids) => ipcRenderer.invoke('clip:classify', ids),
+    status: () => ipcRenderer.invoke('clip:status')
+  },
   on: {
     importProgress: (cb) => on('import:progress', cb),
     importDone: (cb) => on('import:done', cb),
     clipImage: (cb) => on('clip:image', cb),
+    clipProgress: (cb) => on('clip:progress', cb),
     focusSearch: (cb) => on('ui:focus-search', cb),
     saveClip: (cb) => on('ui:save-clip', cb),
     librarySwitched: (cb) => on('library:switched', cb)

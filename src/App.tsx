@@ -116,7 +116,11 @@ export default function App() {
       setSelectedIds(new Set());
       await refreshRef.current();
     });
-    return () => { off1(); off2(); off3(); off4(); off5(); off6(); };
+    const off7 = window.api.on.clipProgress(p => {
+      if (p.stage === 'download') setBusy(`下载 CLIP 模型 ${p.done}/${p.total}…`);
+      else setBusy(`AI 分类 ${p.done}/${p.total} · 采纳 ${p.adopted}`);
+    });
+    return () => { off1(); off2(); off3(); off4(); off5(); off6(); off7(); };
   }, []);
 
   useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim]);
@@ -486,6 +490,27 @@ export default function App() {
     setToast({ msg: r.changed ? `已裁掉 ${r.changed} 张的白边（原图文件没动）` : '这几张没有可裁的白边' });
   };
 
+  /* ---------- CLIP 零样本 AI 分类：主进程跑模型，达标才写库，检查器里可看到建议 ---------- */
+  const runClip = async (ids: string[]) => {
+    if (!ids.length) return;
+    setBusy('AI 分类启动中…');
+    const r = await window.api.clip.classify(ids);
+    setBusy('');
+    await refresh();
+    if (r?.error) { setToast({ msg: 'AI 分类失败：' + r.error }); return; }
+    const skipped = r.total - r.adopted;
+    setToast({
+      msg: `AI 分类完成：${r.adopted}/${r.total} 张达阈值写入了建议`
+        + (skipped ? `，${skipped} 张分数不够没写` : '')
+    });
+  };
+
+  const clipInbox = async () => {
+    // “全部待分类”以库里为准（不受当前搜索影响）
+    const all = await window.api.lib.list({ view: 'inbox', sort: 'new' });
+    await runClip(all.map(i => i.id));
+  };
+
   const selected = items.find(i => i.id === selectedIds.values().next().value) || null;
   const lightboxItem = items.find(i => i.id === lightboxId) || null;
   const cats = tree.map(([c]) => c);
@@ -559,6 +584,7 @@ export default function App() {
             onClearSim={() => setSim(null)}
             onImport={doImport}
             onImportTo={importTo}
+            onClipInbox={view === 'inbox' && !category && !sim && !colorFilter && stats.inbox > 0 ? clipInbox : undefined}
           />
           <div className="gridwrap">
             {items.length === 0 ? (
@@ -591,6 +617,7 @@ export default function App() {
             onPurge={() => setConfirmPurge({ ids: idsOf(selectedIds) })}
             onPurgeAll={() => setConfirmPurge({ ids: [], all: true })}
             onTrim={doTrim}
+            onClip={() => runClip(idsOf(selectedIds))}
           />
         </main>
 

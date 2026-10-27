@@ -75,16 +75,16 @@ function mulberry32(seed) {
 // buffer: raw BGRA pixels (Electron getBitmap / canvas ImageData with swapped channels)
 function pixelsToLabSamples(buf, width, height) {
   const out = [];
-  const step = 1;
-  for (let y = 0; y < height; y += step) {
-    for (let x = 0; x < width; x += step) {
-      const i = (y * width + x) * 4;
-      const a = buf[i + 3];
-      if (a < 96) continue;
-      const b = buf[i], g = buf[i + 1], r = buf[i + 2];
-      const lab = rgbToLab(r, g, b);
-      out.push({ r, g, bl: b, l: lab[0], a: lab[1], b: lab[2] });
-    }
+  // 调用方传入的 w/h 可能比实际缓冲区多算一行/列（裁剪框四舍五入误差），
+  // 读越界会拿到 undefined → Lab 变 NaN → 写库撞 NOT NULL，这里按缓冲区实际大小截断
+  const n = Math.min(width * height, Math.floor(buf.length / 4));
+  for (let p = 0; p < n; p++) {
+    const i = p * 4;
+    const a = buf[i + 3];
+    if (a < 96) continue;
+    const b = buf[i], g = buf[i + 1], r = buf[i + 2];
+    const lab = rgbToLab(r, g, b);
+    out.push({ r, g, bl: b, l: lab[0], a: lab[1], b: lab[2] });
   }
   return out;
 }

@@ -17,8 +17,9 @@ export const Toolbar = forwardRef<HTMLInputElement, {
   colorFilter: string | null; onClearColor: () => void;
   simLabel?: string | null; onClearSim?: () => void;
   onImport: () => void; onImportTo: (cat: string) => void;
+  onClipInbox?: () => void;
 }>(function Toolbar(p, ref) {
-  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, simLabel, onClearSim } = p;
+  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, simLabel, onClearSim, onClipInbox } = p;
   const [menu, setMenu] = useState(false);
   const mref = useRef<HTMLDivElement>(null);
 
@@ -67,6 +68,14 @@ export const Toolbar = forwardRef<HTMLInputElement, {
       </div>
 
       <div className="tb-right">
+        {onClipInbox && (
+          <button className="btn-clip-inbox" onClick={onClipInbox} title="对当前待分类的图逐张跑 CLIP 零样本分类，达标才写库">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <rect x="4" y="4" width="16" height="16" /><path d="M9 4v4M15 4v4M4 9h16M9 13l2 3 4-5" />
+            </svg>
+            AI 分类全部待分类
+          </button>
+        )}
         <Select
           value={sort}
           options={SORTS}
@@ -292,13 +301,13 @@ export const Card = React.memo(function Card({
 });
 
 export function BatchBar({
-  count, cats, mode, onCategory, onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll, onTrim
+  count, cats, mode, onCategory, onFav, onDragOut, onDelete, onClear, onRestore, onPurge, onPurgeAll, onTrim, onClip
 }: {
   count: number; cats: string[]; mode: 'normal' | 'trash';
   onCategory: (c: string) => void; onFav: () => void; onDragOut: () => void;
   onDelete: () => void; onClear: () => void;
   onRestore: () => void; onPurge: () => void; onPurgeAll: () => void;
-  onTrim: () => void;
+  onTrim: () => void; onClip?: () => void;
 }) {
   if (!count) return null;
   return (
@@ -313,6 +322,9 @@ export function BatchBar({
         </>
       ) : (
         <>
+          <button className="primary" onClick={onClip} title="用 CLIP 模型零样本分类选中的图：每张算图像 embedding，与分类的文本 embedding 比余弦，top-1 且分数达标才写库">
+            AI 分类
+          </button>
           <Select
             value={null}
             placeholder="改分类到…"
