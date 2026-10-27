@@ -76,14 +76,18 @@ const killApp = () => {
 
 const shotPath = (name) => path.join(OUT, name);
 
-function runElectron({ js, shot, extraEnv = {}, timeoutMs = 90000 }) {
+function runElectron({ js, shot, extraEnv = {}, timeoutMs = 90000, outDir = OUT, lib = LIB, userdata }) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, ...extraEnv };
     delete env.ELECTRON_RUN_AS_NODE;
+    const shotFull = path.join(outDir, shot);
     Object.assign(env, {
       RC_NOGPU: '1',
-      RC_LIB: LIB,
-      RC_SHOT: shotPath(shot),
+      RC_LIB: lib,
+      // Windows 上 Electron 不吃 APPDATA 环境变量（userData 走系统 known-folder），
+      // 必须显式传 RC_USERDATA 才能保证 config.json 隔离（见 electron/main.js 顶部钩子）
+      RC_USERDATA: userdata || path.join(outDir, 'userdata'),
+      RC_SHOT: shotFull,
       RC_SHOT_JS: js
     });
     const child = spawn(ELECTRON, ['.'], { cwd: ROOT, env, windowsHide: true });
@@ -103,7 +107,7 @@ function runElectron({ js, shot, extraEnv = {}, timeoutMs = 90000 }) {
           try { jsResult = JSON.parse(line.slice('JS_RESULT '.length)); } catch { }
         }
       }
-      const shotSaved = out.includes('SHOT_SAVED ' + shotPath(shot));
+      const shotSaved = out.includes('SHOT_SAVED ' + shotFull);
       if (code !== 0) {
         return reject(new Error(`electron 退出码 ${code}\nstdout tail: ${out.slice(-800)}\nstderr tail: ${err.slice(-800)}`));
       }
@@ -254,4 +258,159 @@ test('RefCollector 交互回归冒烟（导入 → 占位 → 按下即拖 → �
     assert.ok(fs.existsSync(p) && fs.statSync(p).size > 1000, '截图存在且非空: ' + p);
   }
   console.log('[smoke] 截图目录:', OUT);
+});
+
+/* ================= 布局重构冒烟：Section 注册制 / 图标轨 / dock 收起 / Ctrl+K / 问询抽屉 ================= */
+
+const OUT2 = path.join(ROOT, '.rc-layout-out');
+const LIB2 = path.join(OUT2, 'lib');
+const IMG2 = path.join(OUT2, 'img');
+
+test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', async () => {
+  killApp();
+  fs.rmSync(OUT2, { recursive: true, force: true });
+  for (const d of [OUT2, LIB2, IMG2]) fs.mkdirSync(d, { recursive: true });
+  assert.ok(fs.existsSync(ELECTRON), '找不到 electron 可执行文件: ' + ELECTRON);
+
+  // 测试图：6 张多比例 PNG
+  const specs = [
+    ['布局-手部 a.png', 900, 1400],
+    ['布局-场景 b.png', 1600, 1000],
+    ['布局-色卡 c.png', 1000, 1000],
+    ['布局-立绘 d.png', 1200, 1800],
+    ['layout wide e.png', 2000, 800],
+    ['layout tall f.png', 1100, 850]
+  ];
+  specs.forEach(([name, w, h], i) => {
+    const png = makePng(w, h, (x, y) => [
+      (x * 255 / Math.max(1, w)) | 0,
+      ((y + i * 53) * 255 / Math.max(1, h)) % 255 | 0,
+      (i * 61) % 255
+    ]);
+    fs.writeFileSync(path.join(IMG2, name), png);
+  });
+
+  // 每个阶段独立 APPDATA + RC_USERDATA：prefs 互不串台，各阶段都从默认布局出发
+  const appdataOf = (n) => path.join(OUT2, 'appdata-' + n);
+  const envOf = (n) => ({ APPDATA: appdataOf(n) });
+  const userdataOf = (n) => appdataOf(n);
+  fs.mkdirSync(appdataOf('shared'), { recursive: true });
+
+  // 阶段 A：导入 → 默认态截图（左栏三 Section、dock 脊柱、问询 FAB 都在）。
+  // Tab 栏只在意选中时出现：选中后读一把，再 Esc 清选回到脊柱态再截图。
+  const jsA = `(async()=>{
+    const r = await window.api.lib.importPaths({ paths: [${JSON.stringify(IMG2)}] });
+    await new Promise(r2 => setTimeout(r2, 200));
+    document.querySelector('.card').click();
+    await new Promise(r2 => setTimeout(r2, 250));
+    const tabs = [...document.querySelectorAll('.docktab')].map(t => t.textContent);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await new Promise(r2 => setTimeout(r2, 250));
+    return {
+      added: r.added,
+      secs: [...document.querySelectorAll('.rsec')].map(s => s.dataset.sec),
+      tabs,
+      spine: !!document.querySelector('.dock.idle'),
+      fab: !!document.querySelector('.guide-fab'),
+      cards: document.querySelectorAll('.card').length
+    };
+  })()`;
+  const a = await runElectron({ js: jsA, shot: 'layout-01-default.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('shared'), extraEnv: envOf('shared') });
+  assert.equal(a.jsResult.added, specs.length, '全部图片导入成功');
+  assert.deepEqual(a.jsResult.secs, ['views', 'categories', 'boards'], '左栏三个默认 Section 按 order 渲染');
+  assert.deepEqual(a.jsResult.tabs, ['INSPECTOR检查器'], '选中图片后右栏出现检查器 Tab');
+  assert.ok(a.jsResult.spine, 'Esc 清选后 dock 回到 56px 脊柱态');
+  assert.ok(a.jsResult.fab, '问询 FAB 存在');
+  assert.equal(a.jsResult.cards, specs.length, '瀑布流卡片挂载');
+
+  // 阶段 B：左栏折叠成 56px 图标轨（点 .railfold），分区入口图标齐全
+  const jsB = `(async()=>{
+    document.querySelector('.railfold').click();
+    await new Promise(r => setTimeout(r, 400));
+    const rail = document.querySelector('.rail');
+    const app = document.querySelector('.app');
+    return {
+      mini: rail.classList.contains('mini'),
+      railw: app.dataset.rail,
+      icons: document.querySelectorAll('.railicon').length,
+      bodyGone: document.querySelectorAll('.railbody .navitem').length === 0,
+      foldBtnInHead: !!document.querySelector('.railhead .railfold')
+    };
+  })()`;
+  const b = await runElectron({ js: jsB, shot: 'layout-02-rail-mini.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b'), extraEnv: envOf('b') });
+  assert.ok(b.jsResult.mini, 'rail 挂上 .mini');
+  assert.equal(b.jsResult.railw, 'mini', 'app 网格切到 56px 图标轨');
+  assert.equal(b.jsResult.icons, 3, '三个分区各一个图标入口');
+  assert.ok(b.jsResult.bodyGone, '全宽内容体已隐藏');
+  assert.ok(b.jsResult.foldBtnInHead, '头部保留展开按钮（图标轨态仍可一键展开）');
+
+  // 阶段 C：dock 一键收起（标题栏切换钮），stage 吃满剩余宽度
+  const jsC = `(async()=>{
+    const btn = document.querySelector('.tb-dock');
+    if (!btn) return { error: '标题栏 dock 切换钮缺失' };
+    const app = document.querySelector('.app');
+    const stage = document.querySelector('.stage');
+    const before = Math.round(stage.getBoundingClientRect().width);
+    btn.click();
+    await new Promise(r => setTimeout(r, 400));
+    const dock = document.querySelector('.dock');
+    const cols = getComputedStyle(app).gridTemplateColumns.trim().split(/\\s+/).length;
+    return {
+      hidden: app.dataset.dockhide === '1',
+      display: dock ? getComputedStyle(dock).display : 'gone',
+      cols,
+      before,
+      after: Math.round(stage.getBoundingClientRect().width)
+    };
+  })()`;
+  const c = await runElectron({ js: jsC, shot: 'layout-03-dock-hidden.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('c'), extraEnv: envOf('c') });
+  assert.ok(!c.jsResult.error, 'dock 切换钮存在: ' + JSON.stringify(c.jsResult));
+  assert.ok(c.jsResult.hidden, 'data-dockhide=1');
+  assert.ok(c.jsResult.display === 'none' || c.jsResult.display === 'gone', 'dock 视觉移除');
+  assert.equal(c.jsResult.cols, 2, '网格塌成两列（stage 吃满）');
+  assert.ok(c.jsResult.after > c.jsResult.before + 100, `stage 变宽（${c.jsResult.before} → ${c.jsResult.after}px）`);
+
+  // 阶段 D：Ctrl+K 命令面板（静态注册 + 动态分类），↑↓/Enter 由单测覆盖数据层
+  const jsD = `(async()=>{
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 300));
+    const bar = document.querySelector('.cmdbar');
+    if (!bar) return { open: false };
+    const first = document.querySelector('.cmditem.on .cnm');
+    const groups = [...document.querySelectorAll('.cmditem .cgrp')].map(g => g.textContent);
+    return {
+      open: true,
+      items: document.querySelectorAll('.cmditem').length,
+      firstSelected: first ? first.textContent : null,
+      focused: document.activeElement === document.querySelector('.cmdbox input')
+    };
+  })()`;
+  const d = await runElectron({ js: jsD, shot: 'layout-04-cmdk.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('d'), extraEnv: envOf('d') });
+  assert.ok(d.jsResult.open, 'Ctrl+K 打开命令面板');
+  assert.ok(d.jsResult.items >= 10, '默认命令齐全（实测 ' + d.jsResult.items + ' 条，含动态分类）');
+  assert.equal(d.jsResult.firstSelected, '跳转：全部素材', '首条默认选中（order=10 的视图命令）');
+  assert.ok(d.jsResult.focused, '打开即聚焦搜索框');
+
+  // 阶段 E：问询抽屉骨架（FAB 点开 → 占位内容）
+  const jsE = `(async()=>{
+    document.querySelector('.guide-fab').click();
+    await new Promise(r => setTimeout(r, 600));
+    const drawer = document.querySelector('.guidedrawer');
+    return {
+      open: drawer.classList.contains('open'),
+      title: drawer.querySelector('.gt') ? drawer.querySelector('.gt').textContent : null,
+      fabOn: document.querySelector('.guide-fab').classList.contains('on')
+    };
+  })()`;
+  const e = await runElectron({ js: jsE, shot: 'layout-05-guide.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('e'), extraEnv: envOf('e') });
+  assert.ok(e.jsResult.open, '抽屉滑出（.open）');
+  assert.ok(String(e.jsResult.title).includes('即将上线'), '占位内容在位');
+  assert.ok(e.jsResult.fabOn, 'FAB 同步点亮');
+
+  // 5 张截图齐活
+  for (const s of ['layout-01-default.png', 'layout-02-rail-mini.png', 'layout-03-dock-hidden.png', 'layout-04-cmdk.png', 'layout-05-guide.png']) {
+    const p = path.join(OUT2, s);
+    assert.ok(fs.existsSync(p) && fs.statSync(p).size > 1000, '截图存在且非空: ' + p);
+  }
+  console.log('[layout-smoke] 截图目录:', OUT2);
 });

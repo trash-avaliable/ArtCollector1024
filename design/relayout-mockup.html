@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>RefCollector · 布局重构 Mockup（endfield / complex）</title>
+<style>
+/* ===== token：与 src/styles.css :root 一致，禁止新增颜色 ===== */
+:root {
+  --bg: #eef0ea; --ink: #1a1c17; --ink-2: #3c4038;
+  --muted: #6f746a; --muted-2: #989d92; --muted-3: #bcc0b6;
+  --signal: #fffa00; --state: #00ffa2;
+  --panel: linear-gradient(180deg, #ffffff 0%, #f9fbf4 100%);
+  --panel-2: linear-gradient(180deg, #fdfdf9 0%, #f4f7ee 100%);
+  --card: linear-gradient(180deg, #ffffff 0%, #fcfdf8 100%);
+  --dock: linear-gradient(178deg, #262a20 0%, #1b1d16 54%, #14160f 100%);
+  --grad-signal: linear-gradient(100deg, #fffa00 0%, #e9ff4f 100%);
+  --line: #dfe3d7; --line-2: #c7cdbd;
+  --sh-1: 0 1px 2px rgba(28, 34, 24, .05);
+  --sh-2: 0 6px 16px rgba(28, 34, 24, .1);
+  --sh-3: 0 26px 60px rgba(24, 30, 20, .22);
+  --direct: 180ms; --reveal: 420ms; --attention: 1800ms;
+  --ease: cubic-bezier(.22, .8, .2, 1);
+  --ui: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --tech: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+  --display: "Arial Narrow", "Roboto Condensed", sans-serif;
+}
+* { box-sizing: border-box; border-radius: 0; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 13px; user-select: none; }
+button { font: inherit; color: inherit; border: none; background: none; cursor: default; }
+
+.win { height: 100vh; display: flex; flex-direction: column; }
+/* 标题栏 44px 不变 */
+.titlebar { height: 44px; flex: 0 0 44px; display: flex; align-items: center; background: var(--panel); border-bottom: 1px solid var(--line); position: relative; z-index: 30; }
+.brand { display: flex; align-items: center; gap: 10px; padding-left: 18px; }
+.brand .sq { width: 10px; height: 10px; background: var(--grad-signal); box-shadow: inset 0 0 0 1px rgba(26,28,23,.25); }
+.brand .nm { font-family: var(--tech); font-size: 11px; letter-spacing: .26em; font-weight: 500; }
+.crumb { margin: 0 auto; font-size: 12px; color: var(--muted); }
+.wctl { display: flex; height: 43px; }
+.wctl button { width: 44px; height: 43px; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--line); transition: background var(--direct) var(--ease); }
+.wctl button:hover { background: #f2f5ea; }
+.wctl button.on { background: var(--ink); }
+.wctl svg { stroke: var(--ink); fill: none; stroke-width: 1.2; }
+.wctl button.on svg { stroke: var(--signal); }
+
+/* 三栏：rail 宽度由 data-rail 驱动；dock 收起时两列 */
+.app { flex: 1; display: grid; --railw: 208px; grid-template-columns: var(--railw) minmax(0, 1fr) auto; min-height: 0; }
+.app[data-rail="mini"] { --railw: 56px; }
+.app[data-dockhide="1"] { grid-template-columns: var(--railw) minmax(0, 1fr); }
+.app[data-dockhide="1"] .dock { display: none; }
+
+/* ===== 左栏：Section 注册制 + 56px 图标轨 ===== */
+.rail { background: var(--panel-2); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.railhead { flex: 0 0 36px; display: flex; align-items: center; padding: 0 8px 0 6px; border-bottom: 1px solid var(--line); }
+.railhead .microlbl { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .2em; color: var(--muted-3); }
+.railfold, .railicon { width: 26px; height: 26px; display: grid; place-items: center; color: var(--muted-2); transition: background var(--direct) var(--ease), color var(--direct) var(--ease); }
+.railfold:hover, .railicon:hover { background: rgba(26,28,23,.07); color: var(--ink); }
+.railfold svg, .railicon svg { stroke: currentColor; fill: none; stroke-width: 1.4; }
+.railbody { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 10px; }
+.railbody::-webkit-scrollbar { width: 6px; }
+.railbody::-webkit-scrollbar-thumb { background: var(--line-2); }
+.rsec + .rsec { border-top: 1px solid var(--line); margin-top: 8px; }
+.rsec-h { display: flex; align-items: center; height: 30px; margin-top: 6px; padding: 0 10px 0 6px; }
+.rsec-fold { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 100%; font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--muted-2); text-align: left; transition: color var(--direct) var(--ease); }
+.rsec-fold:hover { color: var(--ink); }
+.rsec-caret { font-style: normal; margin-left: auto; font-size: 9px; color: var(--muted-3); transition: transform var(--direct) var(--ease); }
+.rsec-caret.open { transform: rotate(90deg); }
+.railadd { width: 18px; height: 18px; display: grid; place-items: center; font-size: 13px; color: var(--muted-2); }
+.railadd:hover { color: var(--ink); border: 1px solid var(--line-2); }
+.navitem { display: grid; grid-template-columns: 15px 1fr auto; align-items: center; gap: 9px; height: 34px; margin: 0 8px 1px; padding: 0 10px 0 12px; font-size: 12.5px; color: var(--ink-2); transition: background var(--direct) var(--ease), color var(--direct) var(--ease); }
+.navitem:hover { background: rgba(26,28,23,.055); color: var(--ink); }
+.navitem.on { background: var(--ink); color: #fff; }
+.navitem .ico { display: flex; }
+.navitem .ico svg { stroke: currentColor; fill: none; stroke-width: 1.4; }
+.navitem .cnt { font-family: var(--mono); font-size: 10px; color: var(--muted-3); }
+.navitem.on .cnt { color: var(--signal); }
+.cat { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 8px; height: 30px; margin: 0 8px 1px; padding: 0 10px 0 12px; font-size: 12.5px; color: var(--ink-2); border-left: 2px solid transparent; }
+.cat:hover { background: rgba(26,28,23,.055); }
+.cat.on { border-left-color: var(--signal); background: rgba(26,28,23,.07); font-weight: 600; }
+.cat .cnt { font-family: var(--mono); font-size: 10px; color: var(--muted-3); }
+.cat .caret { font-size: 9px; color: var(--muted-3); }
+.catsub { height: 25px; margin: 0 8px 1px 20px; padding: 0 8px 0 10px; display: flex; align-items: center; font-size: 11.5px; color: var(--muted); border-left: 1px solid var(--line-2); }
+.catsub.on { background: var(--ink); color: #fff; }
+/* 图标轨态 */
+.rail.mini .railhead { justify-content: center; padding: 0; }
+.rail.mini .microlbl { display: none; }
+.railicons { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 10px; }
+.rail.mini .railbody { display: none; }
+.railicons { display: none; }
+.rail.mini .railicons { display: flex; }
+.railicon { position: relative; width: 38px; height: 34px; }
+.railicon.on { background: var(--ink); color: #fff; }
+.railicon.on::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; background: var(--grad-signal); }
+.icontip { padding: 10px 8px; font-family: var(--mono); font-size: 8px; letter-spacing: .12em; color: var(--muted-3); writing-mode: vertical-rl; margin: auto; }
+
+/* ===== 中栏 ===== */
+.stage { position: relative; min-width: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.toolbar { flex: 0 0 54px; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.searchbox { flex: 1; height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 11px; background: #fff; border: 1px solid var(--line-2); }
+.searchbox .ph { color: var(--muted-2); font-size: 12.5px; }
+.kbd { font-family: var(--mono); font-size: 10px; color: var(--muted-2); border: 1px solid var(--line); padding: 2px 5px; }
+.sortbox { height: 36px; display: flex; align-items: center; padding: 0 26px 0 11px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2); font-size: 12px; }
+.btn-import { height: 36px; padding: 0 14px; display: flex; align-items: center; gap: 7px; background: var(--grad-signal); font-size: 12px; font-weight: 600; box-shadow: inset 0 0 0 1px rgba(26,28,23,.28); }
+.gridwrap { flex: 1; overflow-y: auto; padding: 14px 16px 24px; }
+.masonry { display: flex; gap: 14px; align-items: flex-start; }
+.mcol { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--sh-1); }
+.card .frame { position: relative; }
+.card .frame img, .card .frame .ph-img { display: block; width: 100%; }
+.ph-img { border: 0; }
+.card .animchip { position: absolute; top: 0; left: 0; height: 17px; padding: 0 6px; background: var(--grad-signal); font-family: var(--mono); font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; }
+.card .info { display: flex; flex-direction: column; gap: 3px; padding: 7px 9px 8px; background: #14160f; }
+.card .fn { font-size: 11.5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .r2 { display: flex; justify-content: space-between; font-size: 9.5px; color: rgba(255,255,255,.72); }
+.card .idx { font-family: var(--mono); color: rgba(255,255,255,.38); }
+
+/* ===== 右栏：Dock Tab 化 ===== */
+.dock { width: 360px; background: var(--dock); border-left: 1px solid var(--ink); color: #fff; display: flex; flex-direction: column; min-height: 0; overflow: hidden; transition: width 260ms var(--ease); }
+.dock.idle { width: 56px; align-items: center; justify-content: space-between; padding: 16px 0 18px; }
+.dock.idle .idlelabel, .dock.idle .idlespine, .dock.idle .idletip { writing-mode: vertical-rl; white-space: nowrap; }
+.dock.idle .idlelabel { font-family: var(--mono); font-size: 9px; letter-spacing: .3em; color: rgba(255,255,255,.38); }
+.dock.idle .idletip { font-size: 10px; letter-spacing: .16em; color: rgba(255,255,255,.3); }
+.dock.idle .idlespine { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: rgba(255,255,255,.7); border-left: 1px solid rgba(255,255,255,.18); padding-left: 7px; }
+.dock.idle .idlespine b { color: var(--signal); }
+.docktabs { flex: 0 0 42px; display: flex; align-items: stretch; border-bottom: 1px solid rgba(255,255,255,.14); overflow: hidden; }
+.docktab { position: relative; display: flex; align-items: center; gap: 7px; padding: 0 14px; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: rgba(255,255,255,.42); border-right: 1px solid rgba(255,255,255,.08); transition: color var(--direct) var(--ease); white-space: nowrap; }
+.docktab .tcn { font-family: var(--ui); font-size: 11.5px; letter-spacing: .06em; }
+.docktab:hover { color: #fff; }
+.docktab.on { color: #fff; }
+.docktab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--grad-signal); }
+.tabcnt { margin-left: auto; align-self: center; padding: 0 14px; font-family: var(--mono); font-size: 11px; color: var(--signal); }
+.docktab-ghost { display: flex; align-items: center; padding: 0 14px; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: rgba(255,255,255,.16); border-right: 1px solid rgba(255,255,255,.08); white-space: nowrap; overflow: hidden; }
+.dbody { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.pv { position: relative; aspect-ratio: 16/10; background: #0d0f0a; border: 1px solid rgba(255,255,255,.18); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.pv .ph-img { width: 70%; height: 70%; }
+.pv .animchip { position: absolute; top: 0; left: 0; height: 17px; padding: 0 6px; background: var(--grad-signal); font-family: var(--mono); font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; }
+.pvname { margin-top: 11px; font-size: 13px; font-weight: 600; }
+.metarow { margin-top: 12px; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid rgba(255,255,255,.14); border-bottom: 1px solid rgba(255,255,255,.08); }
+.metarow > div { padding: 7px 0 8px; border-right: 1px solid rgba(255,255,255,.08); }
+.metarow > div:last-child { border-right: none; }
+.metarow span { display: block; font-family: var(--mono); font-size: 8px; letter-spacing: .14em; color: rgba(255,255,255,.36); }
+.metarow b { display: block; margin-top: 3px; font-weight: 400; font-size: 10.5px; }
+.sect { margin-top: 14px; }
+.sect .sh { display: flex; justify-content: space-between; margin-bottom: 7px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; color: rgba(255,255,255,.38); }
+.sect .sh em { font-style: normal; font-size: 10px; color: var(--signal); }
+.catchip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.2); font-size: 11px; }
+.catchip i { width: 5px; height: 5px; background: var(--signal); }
+.tg { display: inline-flex; align-items: center; height: 22px; padding: 0 6px; margin: 0 4px 4px 0; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); font-size: 10.5px; }
+.sel-btn { margin-top: 8px; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 9px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.2); font-size: 11.5px; color: #fff; }
+.dfoot { padding: 10px 16px 12px; border-top: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.16); display: grid; gap: 6px; }
+.acts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+.acts button { height: 32px; font-size: 11px; color: rgba(255,255,255,.84); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.18); }
+.acts button.on { background: var(--grad-signal); color: var(--ink); font-weight: 600; }
+.sendrow { display: grid; grid-template-columns: 1.15fr 1fr; gap: 6px; }
+.sendps { height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--grad-signal); color: var(--ink); font-size: 12px; font-weight: 700; box-shadow: inset 0 0 0 1px rgba(26,28,23,.28); }
+.sendps .k, .dragout .k { font-family: var(--mono); font-size: 9px; font-weight: 500; opacity: .5; }
+.dragout { height: 38px; display: flex; align-items: center; justify-content: center; gap: 9px; color: rgba(255,255,255,.82); font-size: 12px; font-weight: 600; box-shadow: inset 0 0 0 1px rgba(255,255,255,.24); }
+
+/* ===== 状态栏不变 ===== */
+.status { height: 38px; flex: 0 0 38px; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 0 16px; background: var(--dock); border-top: 1px solid var(--ink); color: rgba(255,255,255,.5); font-size: 10.5px; }
+.status .st { display: flex; align-items: center; gap: 7px; }
+.status .st i { width: 5px; height: 5px; background: var(--state); }
+.status .mono { font-family: var(--mono); }
+.status .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.34); }
+.status .right { display: flex; gap: 14px; }
+.status b { color: #fff; font-weight: 500; }
+
+/* ===== 问询：FAB + 右侧抽屉（骨架） ===== */
+/* FAB 跟着右栏宽度走：dock 开 376 / 脊柱 72 / 收起 16，永远不压住 dock 上的动作按钮 */
+.guide-fab { position: fixed; right: 376px; bottom: 52px; z-index: 76; width: 40px; height: 40px; display: grid; place-items: center; background: var(--dock); border: 1px solid var(--ink); box-shadow: var(--sh-2); transition: transform var(--direct) var(--ease), background var(--direct) var(--ease); }
+.win[data-dock="idle"] .guide-fab { right: 72px; }
+.win[data-dockhide="1"] .guide-fab { right: 16px; }
+.guide-fab svg { stroke: var(--signal); fill: none; stroke-width: 1.5; }
+.guide-fab:hover { transform: translateY(-1px); background: var(--ink); }
+.guide-fab.on { background: var(--grad-signal); }
+.guide-fab.on svg { stroke: var(--ink); }
+.guidedrawer { position: fixed; top: 44px; right: 0; bottom: 38px; z-index: 75; width: 360px; background: var(--panel); border-left: 1px solid var(--ink); box-shadow: var(--sh-3); display: flex; flex-direction: column; transform: translateX(103%); transition: transform var(--reveal) var(--ease); }
+.guidedrawer.open { transform: translateX(0); }
+.ghead { flex: 0 0 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--muted); }
+.ghead b { color: var(--ink); font-weight: 600; }
+.ghead button { font-size: 14px; color: var(--muted); }
+.gbody { flex: 1; overflow-y: auto; padding: 26px 16px; }
+.gmark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--grad-signal); font-size: 16px; box-shadow: inset 0 0 0 1px rgba(26,28,23,.28); }
+.gt { margin-top: 14px; font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+.gp { margin-top: 8px; font-size: 12px; line-height: 1.8; color: var(--ink-2); }
+.gp span { color: var(--muted); font-size: 11.5px; }
+.grule { height: 1px; background: var(--line); margin: 18px 0; }
+
+/* ===== 命令面板 Ctrl+K ===== */
+.cmdveil { position: fixed; inset: 0; z-index: 88; background: rgba(16,18,12,.52); display: flex; align-items: flex-start; justify-content: center; padding-top: 15vh; }
+.cmdbar { width: 560px; max-width: 92vw; background: var(--dock); border: 1px solid var(--ink); box-shadow: var(--sh-3); color: #fff; position: relative; }
+.cmdbar::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--grad-signal); }
+.cmdbox { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: 1px solid rgba(255,255,255,.14); }
+.cmdbox svg { stroke: rgba(255,255,255,.4); fill: none; stroke-width: 1.5; }
+.cmdbox input { flex: 1; height: 100%; font: inherit; font-size: 14px; color: #fff; border: none; background: none; outline: none; }
+.cmdbox input::placeholder { color: rgba(255,255,255,.32); }
+.cmdbox .kbd { color: rgba(255,255,255,.34); border-color: rgba(255,255,255,.18); }
+.cmdlist { max-height: 320px; overflow-y: auto; padding: 6px; }
+.cmditem { position: relative; width: 100%; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; font-size: 12.5px; color: rgba(255,255,255,.8); text-align: left; transition: background var(--direct) var(--ease), color var(--direct) var(--ease); }
+.cmditem .cgrp { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: rgba(255,255,255,.32); border: 1px solid rgba(255,255,255,.14); padding: 1px 5px; }
+.cmditem.on { background: rgba(255,255,255,.1); color: #fff; }
+.cmditem.on::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--grad-signal); }
+.cmdfoot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid rgba(255,255,255,.14); font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: rgba(255,255,255,.34); }
+.cmdfoot .r { margin-left: auto; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="win" data-ark-theme="endfield" data-ark-depth="complex">
+  <div class="titlebar">
+    <div class="brand"><i class="sq"></i><span class="nm">REFCOLLECTOR</span></div>
+    <div class="crumb">库  /  全部素材  /  24 项</div>
+    <div class="wctl">
+      <button id="bDock" title="收起/显示检查器栏"><svg width="13" height="13" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16"/><path d="M15 4v16"/></svg></button>
+      <button title="库设置"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/></svg></button>
+      <button title="最小化"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button>
+      <button title="最大化"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 2.5h7v7h-7z"/></svg></button>
+      <button title="收进托盘"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+    </div>
+  </div>
+
+  <div class="app" id="app" data-rail="full" data-dockhide="0">
+    <!-- 左栏：VIEW / CATEGORY / BOARDS 三个 Section；未来 NOTES / HISTORY 在此追加 -->
+    <nav class="rail" id="rail">
+      <div class="railhead">
+        <button class="railfold" id="bRail" title="收起左栏为图标轨">
+          <svg width="13" height="13" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg>
+        </button>
+        <span class="microlbl">LIB / 素材库</span>
+      </div>
+      <div class="railbody" id="railbody"></div>
+      <div class="railicons" id="railicons"></div>
+    </nav>
+
+    <main class="stage">
+      <div class="toolbar">
+        <label class="searchbox"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#989d92" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg><span class="ph">搜索名字 / 拼音 / 首字母 / 分类</span><span class="kbd">ALT+SPACE</span></label>
+        <div class="sortbox">最近添加<i></i></div>
+        <button class="btn-import">↓ 导入</button>
+      </div>
+      <div class="gridwrap"><div class="masonry" id="masonry"></div></div>
+    </main>
+
+    <aside class="dock" id="dock">
+      <div class="dock.idle-variant" id="dockIdle" style="display:contents"></div>
+    </aside>
+  </div>
+
+  <footer class="status">
+    <div class="st"><i></i>本地库已连接</div>
+    <div class="mono">索引 <b>24</b> 项</div>
+    <div class="path">D:\RefLibrary</div>
+    <div class="right"><span class="mono"><b>CTRL+K</b> 命令</span><span class="mono"><b>ALT+SPACE</b> 唤起</span><span class="mono"><b>F2</b> 重命名</span></div>
+  </footer>
+
+  <button class="guide-fab" id="bGuide" title="问询助手（即将上线）">
+    <svg width="17" height="17" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z"/></svg>
+  </button>
+  <aside class="guidedrawer" id="guide">
+    <div class="ghead"><span><b>ASK</b> / 问询助手</span><button id="bGuideX">×</button></div>
+    <div class="gbody">
+      <div class="gmark">✦</div>
+      <div class="gt">问询助手即将上线</div>
+      <div class="gp">这里是未来的问询入口：选中图片直接问「这批手部参考怎么归档」，或让助手按画板整理素材。<span>上线前可以用 Ctrl+K 命令面板快速跳转。</span></div>
+      <div class="grule"></div>
+      <div class="gp"><span>本区域为骨架占位，问答逻辑后续接入。</span></div>
+    </div>
+  </aside>
+
+  <div class="cmdveil hidden" id="cmdveil">
+    <div class="cmdbar">
+      <div class="cmdbox">
+        <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
+        <input placeholder="搜索命令：视图 / 分类 / 画板 / 导入 / 设置…" />
+        <span class="kbd">ESC</span>
+      </div>
+      <div class="cmdlist" id="cmdlist"></div>
+      <div class="cmdfoot"><span>↑↓ 选择</span><span>ENTER 执行</span><span>ESC 关闭</span><span class="r">CTRL+K 开关</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* mockup 数据与状态机：state(default|inspector|mini|dockhide|palette|guide) */
+const VIEW_SECTIONS = [
+  { id: 'views', en: 'VIEW', cn: '视图', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', open: true },
+  { id: 'categories', en: 'CATEGORY', cn: '分类', icon: 'M4 7h6l2 2h8v10H4zM4 7V5h4', open: true },
+  { id: 'boards', en: 'BOARDS', cn: '画板', icon: 'M4 4h16v12H4zM8 20h8M12 16v4', open: true }
+];
+const NAV = [
+  ['全部素材', 24, 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', true],
+  ['待分类', 6, 'M3 4h18v10H3zM3 14l4-4M21 14l-4-4M8 20h8', false],
+  ['收藏', 5, 'M12 3l3 6 6 1-4.5 4.2 1 6-5.5-3-5.5 3 1-6L3 10l6-1z', false],
+  ['最近浏览', '', 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3.5 2', false]
+];
+const CATS = [['手部', 9, ['握持', '张开']], ['场景', 7, []], ['角色', 6, ['立绘']], ['色卡', 2, []]];
+const BOARDS = [['本周商稿', 8], ['冷色调氛围', 4]];
+const CMDS = [
+  ['跳转：全部素材', '视图', true], ['跳转：待分类', '视图', false], ['跳转：回收站', '视图', false],
+  ['跳转：分类「手部」', '分类', false], ['跳转：画板「本周商稿」', '画板', false],
+  ['导入图片 / 文件夹', '动作', false], ['库设置', '动作', false],
+  ['切换：左栏图标轨', '布局', false], ['切换：收起右栏检查器', '布局', false], ['打开问询助手', '布局', false]
+];
+const svg = (d, s = 15) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="square"><path d="${d}"/></svg>`;
+const stroke = (html, c) => html.replace(/<svg /g, `<svg stroke="${c}" `);
+
+const railbody = document.getElementById('railbody');
+railbody.innerHTML = VIEW_SECTIONS.map((s, si) => `
+  <section class="rsec" data-sec="${s.id}">
+    <div class="rsec-h">
+      <button class="rsec-fold">${s.en} / ${s.cn}<i class="rsec-caret ${s.open ? 'open' : ''}">▸</i></button>
+      ${(s.id !== 'views') ? '<button class="railadd">＋</button>' : ''}
+    </div>
+    <div class="rsec-b">${
+      s.id === 'views' ? NAV.map(([n, c, d, on]) =>
+        `<div class="navitem${on ? ' on' : ''}"><i class="ico">${stroke(svg(d), 'currentColor')}</i><span>${n}</span><i class="cnt">${c}</i></div>`).join('')
+      : s.id === 'categories' ? CATS.map(([n, c, subs], i) =>
+        `<div class="cat${i === 0 ? ' on' : ''}"><span class="caret">▸</span><span class="nm">${n}</span><i class="cnt">${c}</i></div>` +
+        (subs.length && i === 0 ? subs.map(x => `<div class="catsub${x === '握持' ? ' on' : ''}"><span>${x}</span></div>`).join('') : '')).join('')
+      : BOARDS.map(([n, c], i) =>
+        `<div class="cat ws${i === 0 ? ' on' : ''}" style="grid-template-columns:1fr auto"><span class="nm">■ ${n}</span><i class="cnt">${c}</i></div>`).join('')
+    }</div>
+  </section>`).join('');
+
+const SEC_ICONS = { views: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', categories: 'M4 7h6l2 2h8v10H4zM4 7V5h4', boards: 'M4 4h16v12H4zM8 20h8M12 16v4' };
+document.getElementById('railicons').innerHTML =
+  `<button class="railfold" data-fold title="展开左栏">${stroke(svg('M10 6l6 6-6 6', 13), 'currentColor')}</button>` +
+  Object.entries(SEC_ICONS).map(([id, d]) => `<button class="railicon${id === 'views' ? ' on' : ''}" title="${id}">${stroke(svg(d), 'currentColor')}</button>`).join('') +
+  `<div class="icontip">REFCOLLECTOR RAIL</div>`;
+
+/* 瀑布流假卡：4 列，交错高度 */
+const HS = [220, 150, 260, 180, 130, 240, 200, 160, 280, 170, 210, 140, 250, 190, 150, 230, 120, 200, 170, 260];
+const NAMES = ['手部-速写01.png', 'scene wide.png', '色卡 palette.png', 'big portrait.png', '手部 pose 03.png', '线稿 line.png', 'role 设计07.png', '场景 光影01.png'];
+const masonry = document.getElementById('masonry');
+masonry.innerHTML = [0, 1, 2, 3].map(ci => '<div class="mcol">' + HS.filter((_, i) => i % 4 === ci).map((h, j) => {
+  const idx = ci + j * 4;
+  const tone = 232 - (idx * 11) % 96;
+  return `<article class="card">
+    <div class="frame" style="height:${h}px;background:linear-gradient(160deg,#ffffff,rgb(${tone},${tone + 4},${tone - 10}))">
+      ${idx === 4 ? '<span class="animchip">GIF</span>' : ''}
+    </div>
+    <div class="info"><div class="fn">${NAMES[idx % NAMES.length]}</div><div class="r2"><span>${['手部', '场景', '色卡', '角色'][idx % 4]}</span><span class="idx">#${String(idx + 1).padStart(3, '0')}</span></div></div>
+  </article>`;
+}).join('') + '</div>').join('');
+
+/* 检查器（选中态 Tab）内容 */
+const dock = document.getElementById('dock');
+const DOCK_IDLE = `<div class="idlelabel">INSPECTOR</div><div class="idletip">点一张图看详情</div><div class="idlespine"><b>24</b> ITEMS</div>`;
+const DOCK_TABS = `
+  <div class="docktabs">
+    <button class="docktab on" role="tab"><span>INSPECTOR</span><span class="tcn">检查器</span></button>
+    <span class="docktab-ghost">NOTES（预留）</span>
+    <span class="docktab-ghost" style="border-right:none">CAPTURE（预留）</span>
+    <span class="tabcnt">24</span>
+  </div>`;
+const DOCK_BODY = `
+  <div class="dbody">
+    <div class="pv"><div class="ph-img" style="background:linear-gradient(160deg,#8d9480,#3c4038)"></div><span class="animchip">GIF</span></div>
+    <div class="pvname">手部 pose 03.gif</div>
+    <div class="metarow"><div><span>SIZE</span><b>1400×900</b></div><div><span>FILE</span><b>412 KB</b></div><div><span>FMT</span><b>GIF · 动</b></div><div><span>ADDED</span><b>2026.10.24</b></div></div>
+    <div class="sect"><div class="sh"><span>CLASSIFICATION / 分类</span><em>两级都可改</em></div><div class="catchip"><i></i>手部</div><div class="sel-btn"><span>握持</span><span>▾</span></div></div>
+    <div class="sect"><div class="sh"><span>TAGS / 标签</span><em>回车添加</em></div><span class="tg">握持 ×</span><span class="tg">参考 ×</span><span class="tg" style="border-style:dashed;background:none">+ 标签</span></div>
+    <div class="sect"><div class="sh"><span>BOARDS / 画板</span><em>跨分类组图</em></div><span class="tg">本周商稿 ×</span><div class="sel-btn"><span>加入画板…</span><span>▾</span></div></div>
+    <div class="sect"><div class="sh"><span>PALETTE / 色板</span><em>点色块按色搜索</em></div>
+      <div style="display:flex;height:34px;border:1px solid rgba(255,255,255,.22)">
+        <div style="flex:5;background:#3c4038"></div><div style="flex:3;background:#8d9480"></div><div style="flex:2;background:#dfe3d7"></div>
+      </div>
+    </div>
+  </div>
+  <div class="dfoot">
+    <div class="acts"><button class="on">取消收藏</button><button>复制图片</button><button>定位文件</button><button>相似图</button><button>置顶</button><button>移出库</button></div>
+    <div class="sendrow"><button class="sendps">直送 PS <span class="k">TO LAYER</span></button><button class="dragout">拖入画布 <span class="k">DRAG TO PS / SAI</span></button></div>
+  </div>`;
+
+function setState(s) {
+  const app = document.getElementById('app');
+  const winEl = document.querySelector('.win');
+  const rail = document.getElementById('rail');
+  const guide = document.getElementById('guide');
+  const fab = document.getElementById('bGuide');
+  const dockOpen = s === 'inspector' || s === 'palette' || s === 'guide';
+  document.getElementById('cmdveil').classList.toggle('hidden', s !== 'palette');
+  guide.classList.toggle('open', s === 'guide');
+  fab.classList.toggle('on', s === 'guide');
+  const mini = s === 'mini' || s === 'dockhide';
+  app.dataset.rail = mini ? 'mini' : 'full';
+  rail.classList.toggle('mini', mini);
+  app.dataset.dockhide = s === 'dockhide' ? '1' : '0';
+  winEl.dataset.dock = dockOpen ? 'open' : 'idle';
+  winEl.dataset.dockhide = s === 'dockhide' ? '1' : '0';
+  if (dockOpen) {
+    dock.classList.remove('idle');
+    dock.innerHTML = DOCK_TABS + DOCK_BODY;
+  } else {
+    dock.classList.add('idle');
+    dock.innerHTML = DOCK_IDLE;
+  }
+  document.getElementById('bDock').classList.toggle('on', s === 'dockhide');
+}
+document.getElementById('bDock').onclick = () => setState(document.getElementById('app').dataset.dockhide === '1' ? 'inspector' : 'dockhide');
+document.getElementById('bRail').onclick = () => setState('mini');
+document.getElementById('bGuide').onclick = () => setState('guide');
+document.getElementById('bGuideX').onclick = () => setState('inspector');
+window.addEventListener('keydown', e => { if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); setState('palette'); } });
+document.getElementById('cmdlist').innerHTML = CMDS.map(([t, g, on]) =>
+  `<button class="cmditem${on ? ' on' : ''}"><span>${t}</span><span class="cgrp">${g}</span></button>`).join('');
+window.setState = setState;
+setState(new URLSearchParams(location.search).get('state') || 'default');
+</script>
+</body>
+</html>

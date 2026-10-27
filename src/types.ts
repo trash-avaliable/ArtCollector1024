@@ -70,7 +70,18 @@ export type ClipInfo = { file: string; width: number; height: number; dataUrl: s
 
 export type Sort = 'new' | 'old' | 'name' | 'size';
 
-export type Prefs = { railViews?: View[]; railCats?: string[] };
+export type Prefs = {
+  railViews?: View[];
+  railCats?: string[];
+  /** 左栏整体折叠成 56px 图标轨 */
+  railMini?: boolean;
+  /** 左栏分区折叠状态（Section id → 是否折叠），经 layout-registry 的 normalizeCollapse 洗过再写 */
+  railCollapsed?: Record<string, boolean>;
+  /** 右栏激活的 Dock Tab id（经 sanitizeDockTab 校验） */
+  dockTab?: string;
+  /** 右栏整体收起（stage 吃满剩余宽度），标题栏切换钮控制 */
+  dockHidden?: boolean;
+};
 
 export type ColorHit = { hex: string; dist: number; pct: number };
 

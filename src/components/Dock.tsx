@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { animLabel, cropImgStyle, cropOf, fmtDate, fmtSize, origUrl, thumbUrl, type ColorHit, type Item, type Stats, type Tree, type Workset } from '../types';
+import { dockTabs } from '../lib/layout-registry';
 import { Select } from './Select';
 
 /**
@@ -54,7 +55,8 @@ function Pv({ item }: { item: Item }) {
 export function Dock({
   stats, count, label, selected, cats, tree, busy, editSignal, worksets,
   onFav, onCopy, onReveal, onRemove, onCategory, onSubCategory, onDragOut, onRename,
-  onTags, onColorClick, onSimilar, onPin, onAddToWorkset, onRemoveFromWorkset, onSendToPs
+  onTags, onColorClick, onSimilar, onPin, onAddToWorkset, onRemoveFromWorkset, onSendToPs,
+  dockTab, onTab
 }: {
   stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; tree: Tree; busy: string;
   editSignal: number; worksets: Workset[];
@@ -69,6 +71,9 @@ export function Dock({
   onAddToWorkset: (id: string, wsId: string) => void;
   onRemoveFromWorkset: (id: string, wsId: string) => void;
   onSendToPs: (id: string) => void;
+  /** 当前激活的 Dock Tab（prefs.dockTab，已过 sanitizeDockTab 校验） */
+  dockTab: string;
+  onTab: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -137,14 +142,15 @@ export function Dock({
     );
   }
 
-  return (
-    <aside className="dock">
-      <div className="dhead">
-        <div className="t">INSPECTOR / <b>检查器</b></div>
-        <div className="cnt">{count}</div>
-      </div>
-
-      <div className="dbody">
+  /* EXTENSION-DOCK-TAB: 右栏面板按注册制渲染成 Tab。
+     未来「笔记」「采集」各成一个 Tab：在 layout-registry.ts 的 dockTabs 里注册（order 定排位），
+     再在这里补一个 id 分支返回对应面板；检查器全部内容（预览 / BOARDS / 直送 PS 按钮组）
+     原样平移进第一个 Tab，没有删减。激活态存 prefs.dockTab。 */
+  const tabPane = (id: string) => {
+    if (id !== 'inspector') return null;
+    return (
+      <>
+        <div className="dbody">
         {selected ? (
           <>
             <Pv item={selected} />
@@ -344,6 +350,31 @@ export function Dock({
           </>
         )}
       </div>
+    </>
+    );
+  };
+
+  const tabs = dockTabs.list();
+
+  return (
+    <aside className="dock">
+      <div className="docktabs" role="tablist" aria-label="右栏面板">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={t.id === dockTab}
+            className={'docktab' + (t.id === dockTab ? ' on' : '')}
+            title={t.cn}
+            onClick={() => onTab(t.id)}
+          >
+            <span>{t.en}</span>
+            <span className="tcn">{t.cn}</span>
+          </button>
+        ))}
+        <span className="tabcnt">{count}</span>
+      </div>
+      {tabPane(dockTab)}
     </aside>
   );
 }

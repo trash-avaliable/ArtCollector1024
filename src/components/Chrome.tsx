@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 
-export function TitleBar({ crumb, maximized, onSettings }: { crumb: string; maximized: boolean; onSettings: () => void }) {
+export function TitleBar({ crumb, maximized, onSettings, dockHidden, onToggleDock }: {
+  crumb: string; maximized: boolean; onSettings: () => void;
+  /** 右栏收起态与切换钮（stage 一键吃满宽度） */
+  dockHidden: boolean; onToggleDock: () => void;
+}) {
   return (
     <div className="titlebar">
       <div className="brand">
@@ -9,6 +13,17 @@ export function TitleBar({ crumb, maximized, onSettings }: { crumb: string; maxi
       </div>
       <div className="crumb" title={crumb}>{crumb}</div>
       <div className="wctl">
+        <button
+          className={dockHidden ? 'tb-dock on' : 'tb-dock'}
+          onClick={onToggleDock}
+          title={dockHidden ? '显示检查器栏' : '收起检查器栏（stage 吃满宽度）'}
+          aria-label={dockHidden ? '显示检查器栏' : '收起检查器栏'}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="1.4">
+            <rect x="3" y="4" width="18" height="16" />
+            <path d="M15 4v16" />
+          </svg>
+        </button>
         <button onClick={onSettings} title="库设置">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="1.4">
             <circle cx="12" cy="12" r="3.2" />
