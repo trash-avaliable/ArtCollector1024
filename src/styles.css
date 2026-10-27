@@ -1147,7 +1147,7 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: rgba(255, 255, 255, .34);
 }
 
-/* ---------- 问询抽屉（骨架）：右侧滑出，token 与动效令牌同源 ---------- */
+/* ---------- 问询抽屉（对话式问答）：右侧滑出，token 与动效令牌同源 ---------- */
 .guideveil { position: fixed; inset: 0; z-index: 74; }
 .guidedrawer {
   position: fixed; top: 44px; right: 0; bottom: 38px; z-index: 75; width: 360px; max-width: 86vw;
@@ -1157,22 +1157,55 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 }
 .guidedrawer.open { transform: translateX(0); }
 .ghead {
-  flex: 0 0 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
+  flex: 0 0 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
   border-bottom: 1px solid var(--line);
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--muted);
 }
+.ghead .glft { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ghead b { color: var(--ink); font-weight: 600; }
+.gsub {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .ghead button { font-size: 14px; color: var(--muted); }
 .ghead button:hover { color: var(--ink); }
-.gbody { flex: 1; min-height: 0; overflow-y: auto; padding: 26px 16px; }
-.gmark {
-  width: 34px; height: 34px; display: grid; place-items: center; font-size: 16px;
-  background: var(--grad-signal); box-shadow: inset 0 0 0 1px rgba(26, 28, 23, .28);
+
+/* 对话流：用户气泡右深色，agent 回答卡片浅色 + 信号黄左边条，全直角 */
+.gchat { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; }
+.grow { display: flex; }
+.grow.user { justify-content: flex-end; }
+.gbubble {
+  max-width: 88%; padding: 8px 10px; font-size: 12px; line-height: 1.7; white-space: pre-wrap;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2);
 }
-.gt { margin-top: 14px; font-size: 14px; font-weight: 600; letter-spacing: .04em; }
-.gp { margin-top: 8px; font-size: 12px; line-height: 1.8; color: var(--ink-2); }
-.gp span { color: var(--muted); font-size: 11.5px; }
-.grule { height: 1px; background: var(--line); margin: 18px 0; }
+.grow.user .gbubble { background: var(--dock); color: #f2f5ea; border-color: var(--ink); }
+.grow.agent .gbubble { border-left: 3px solid var(--signal); }
+.grow.agent .gbubble.low { border-left-color: var(--line-2); color: var(--muted); }
+.gatitle { font-weight: 600; font-size: 12.5px; letter-spacing: .02em; color: var(--ink); margin-bottom: 4px; }
+.gatext { overflow-wrap: anywhere; }
+.gasteps { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.gasteps li::marker { color: var(--signal); font-family: var(--mono); font-size: 10px; }
+.gchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.gchips:empty { display: none; }
+.gchip {
+  font-size: 11px; line-height: 1; padding: 5px 8px;
+  border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2);
+  transition: border-color var(--direct) var(--ease), color var(--direct) var(--ease), background var(--direct) var(--ease);
+}
+.gchip:hover { border-color: var(--ink); color: var(--ink); background: #fff; }
+
+/* 输入行 */
+.gask { flex: 0 0 auto; display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--line); }
+.gask input {
+  flex: 1; min-width: 0; height: 34px; padding: 0 10px; font-size: 12px;
+  border: 1px solid var(--line-2); background: #fff; color: var(--ink);
+}
+.gask input:focus { border-color: var(--ink); }
+.gask .gsend {
+  height: 34px; padding: 0 14px; font-size: 12px; font-weight: 600;
+  background: var(--grad-signal); border: 1px solid rgba(26, 28, 23, .3);
+}
+.gask .gsend:disabled { opacity: .45; cursor: default; }
 
 /* ---------- 问询 FAB：右下角方角按钮，位置跟着右栏宽度走，永不压住 dock 动作 ---------- */
 .guide-fab {

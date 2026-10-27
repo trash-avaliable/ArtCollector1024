@@ -42,3 +42,6 @@ installed.png
 # 采集 e2e 测试产物（本地测试站 + 临时库 + 截图）
 .rc-crawl-out/
 .rc-test-userdata/
+
+# 问询助手冒烟截图产物
+.rc-guide-out/

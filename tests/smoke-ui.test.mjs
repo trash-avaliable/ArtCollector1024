@@ -399,20 +399,28 @@ test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面
   assert.equal(d.jsResult.firstSelected, '跳转：全部素材', '首条默认选中（order=10 的视图命令）');
   assert.ok(d.jsResult.focused, '打开即聚焦搜索框');
 
-  // 阶段 E：问询抽屉骨架（FAB 点开 → 占位内容）
+  // 阶段 E：问询抽屉（FAB 点开 → 欢迎态对话流 + 推荐问题 chips）
   const jsE = `(async()=>{
     document.querySelector('.guide-fab').click();
     await new Promise(r => setTimeout(r, 600));
     const drawer = document.querySelector('.guidedrawer');
     return {
       open: drawer.classList.contains('open'),
-      title: drawer.querySelector('.gt') ? drawer.querySelector('.gt').textContent : null,
+      sub: drawer.querySelector('.gsub') ? drawer.querySelector('.gsub').textContent : null,
+      bubbles: drawer.querySelectorAll('.grow').length,
+      chips: drawer.querySelectorAll('.gchip').length,
+      input: !!drawer.querySelector('.gask input'),
+      sendDisabled: drawer.querySelector('.gsend') ? drawer.querySelector('.gsend').disabled : null,
       fabOn: document.querySelector('.guide-fab').classList.contains('on')
     };
   })()`;
   const e = await runElectron({ js: jsE, shot: 'layout-05-guide.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('e'), extraEnv: envOf('e') });
   assert.ok(e.jsResult.open, '抽屉滑出（.open）');
-  assert.ok(String(e.jsResult.title).includes('即将上线'), '占位内容在位');
+  assert.ok(String(e.jsResult.sub).includes('离线知识库检索'), '顶部小字「离线知识库检索 · LLM API 接入预留」在位');
+  assert.equal(e.jsResult.bubbles, 1, '欢迎语一条 agent 气泡');
+  assert.ok(e.jsResult.chips >= 6, '6 个推荐问题 chips（实测 ' + e.jsResult.chips + '）');
+  assert.ok(e.jsResult.input, '输入框在位');
+  assert.equal(e.jsResult.sendDisabled, true, '空输入时发送按钮禁用');
   assert.ok(e.jsResult.fabOn, 'FAB 同步点亮');
 
   // 5 张截图齐活
