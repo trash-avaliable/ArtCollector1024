@@ -29,3 +29,8 @@ installed.png
 .rc-test-appdata/
 .rc-shots/
 .rc-smoke-out/
+
+# 冒烟/布局测试产物（截图、临时库、隔离 userdata）
+.rc-smoke-out/
+.rc-layout-out/
+.rc-test-lib/
