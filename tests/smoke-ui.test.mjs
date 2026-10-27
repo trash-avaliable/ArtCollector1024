@@ -217,11 +217,12 @@ test('RefCollector 交互回归冒烟（导入 → 占位 → 按下即拖 → �
     const rect = b => { const r = b.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; };
     const sel = await window.api.lib.list({});
     const target = sel[0];
+    // RC_NODRAG=1（见启动 env）：按下 → onDragOut → IPC → 主进程只记账不开原生拖拽
     drag.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 10 }));
     await new Promise(r => setTimeout(r, 150));
     return { send: rect(send), drag: rect(drag), targetId: target.id, targetName: target.name };
   })()`;
-  const c = await runElectron({ js: jsC, shot: 'smoke-03-dock-buttons.png', extraEnv: commonEnv });
+  const c = await runElectron({ js: jsC, shot: 'smoke-03-dock-buttons.png', extraEnv: { ...commonEnv, RC_NODRAG: '1' } });
   assert.ok(!c.jsResult.error, 'Dock 双按钮渲染: ' + JSON.stringify(c.jsResult));
   assert.ok(c.jsResult.send.w > 60 && c.jsResult.drag.w > 60, '两个按钮都有实际宽度');
   assert.equal(c.jsResult.send.h, 38, '直送 PS 按钮 38px 高');

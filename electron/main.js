@@ -775,6 +775,13 @@ ipcMain.on('lib:drag-out', (e, id) => {
   if (!it) return;
   const file = store.itemFile(it);
   if (!fs.existsSync(file)) return;
+  // 自动化测试钩子：RC_NODRAG=1 时只记账（used_at）不进入 startDrag 的
+  // DoDragDrop 模态循环——没有真实鼠标的释放事件它永不返回
+  if (process.env.RC_NODRAG === '1') {
+    store.touch(id);
+    try { store.save(); } catch { }
+    return;
+  }
   let icon = nativeImage.createFromPath(store.thumbPath(it.sha));
   if (icon.isEmpty()) icon = nativeImage.createFromPath(path.join(ASSETS, 'tray.png'));
   icon = icon.resize({ width: 96 });
