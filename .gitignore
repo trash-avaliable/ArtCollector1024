@@ -34,6 +34,7 @@ installed.png
 /.rc-models/
 /.rc-test-lib/
 
-# electron userData 测试产物
+# electron userData / 布局测试产物
 .rc-test-user/
 .rc-layout-out/
+.rc-smoke-out/

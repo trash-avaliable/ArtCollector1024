@@ -6,6 +6,12 @@ import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
 import { Settings } from './components/Settings';
 import { fullPrefs, matchesAppKey, type FullPrefs } from './lib/settings-core';
+import { CommandPalette } from './components/CommandPalette';
+import { GuideDrawer, GuideFab } from './components/Guide';
+import {
+  commands, dockTabs, parseCollapse, sanitizeDockTab, serializeCollapse, toggleCollapse,
+  type CollapseState, type CommandEntry
+} from './lib/layout-registry';
 import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset } from './types';
 
 const idsOf = (s: Set<string>): string[] => {
@@ -61,6 +67,14 @@ export default function App() {
   const [hotkeys, setHotkeys] = useState<{ bindings: Record<string, string>; registered: Record<string, boolean> } | null>(null);
   const [version, setVersion] = useState('');
   const [scan, setScan] = useState<{ root: string; result: ScanResult | null; picked: Set<string>; loose: boolean } | null>(null);
+
+  /* ---------- 布局重构新增状态：左栏分区/图标轨、右栏 Tab/收起、命令面板、问询抽屉 ---------- */
+  const [railMini, setRailMini] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState<CollapseState>({});
+  const [dockHidden, setDockHidden] = useState(false);
+  const [dockTab, setDockTab] = useState<string>(() => sanitizeDockTab(null, dockTabs));
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     if (!settings) return;
@@ -118,6 +132,11 @@ export default function App() {
       if (prefs?.railViews?.length) setRailViews(prefs.railViews);
       if (prefs?.railCats?.length) setRailCats(prefs.railCats);
       else setRailCats(info.tree.map(([c]) => c));
+      // 布局偏好：图标轨 / 分区折叠 / dock 收起 / 激活 Tab（key 跟 railViews 同族，存 config.json prefs）
+      setRailMini(!!prefs?.railMini);
+      setRailCollapsed(parseCollapse(prefs?.railCollapsed));
+      setDockHidden(!!prefs?.dockHidden);
+      setDockTab(sanitizeDockTab(prefs?.dockTab, dockTabs));
       await refreshRef.current();
       setMaximized(await window.api.win.isMax());
     })();
@@ -175,8 +194,13 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const typing = t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA';
+      // 命令面板：快捷键可在设置里改（appKeys.palette，默认 Control+K）
+      if (matchesAppKey(e, prefsFull.appKeys?.palette)) { e.preventDefault(); setCmdOpen(o => !o); return; }
       if (matchesAppKey(e, prefsFull.appKeys?.import)) { e.preventDefault(); doImport(); }
       if (e.key === 'Escape') {
+        // 逐层退出：命令面板 → 问询抽屉 → 选择 → 各弹层
+        if (cmdOpen) { setCmdOpen(false); return; }
+        if (guideOpen) { setGuideOpen(false); return; }
         if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
         setLightboxId(null); setClip(null);
         setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setConfirmWs(null); setSettings(false);
@@ -196,7 +220,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, items, view, category, sub, prefsFull]);
+  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => { e.preventDefault(); };
@@ -390,6 +414,31 @@ export default function App() {
   };
 
   const clearSel = () => { setSelectedIds(new Set()); setLastId(null); };
+
+  /* ---------- 导航：左栏 / 命令面板共用同一套跳转（换筛选就清选择） ---------- */
+  const gotoView = (v: View) => { setView(v); setCategory(null); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); };
+  const gotoCategory = (c: string | null) => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); };
+
+  /* ---------- 布局偏好写穿 prefs（StrictMode 下副作用不进 setState updater） ---------- */
+  const toggleRailMini = () => {
+    const n = !railMini;
+    setRailMini(n);
+    window.api.lib.setPrefs({ railMini: n } as Partial<Prefs>);
+  };
+  const toggleSection = (id: string) => {
+    const n = toggleCollapse(railCollapsed, id);
+    setRailCollapsed(n);
+    window.api.lib.setPrefs({ railCollapsed: serializeCollapse(n) } as Partial<Prefs>);
+  };
+  const toggleDockHidden = () => {
+    const n = !dockHidden;
+    setDockHidden(n);
+    window.api.lib.setPrefs({ dockHidden: n } as Partial<Prefs>);
+  };
+  const pickDockTab = (id: string) => {
+    setDockTab(id);
+    window.api.lib.setPrefs({ dockTab: id } as Partial<Prefs>);
+  };
 
   const batchCategory = async (cat: string) => {
     const ids: string[] = idsOf(selectedIds);
@@ -647,19 +696,69 @@ export default function App() {
   if (bootKeyRef.current === null) bootKeyRef.current = fadeKey;
   const animateIn = fadeKey === bootKeyRef.current;
 
+  /* ---------- 命令面板（Ctrl+K）：静态注册 + 动态（分类 / 画板） ---------- */
+  // EXTENSION-COMMAND: 动作映射表。未来功能的命令（笔记搜索 / 网页采集 / 问询…）
+  // 在 layout-registry.ts 的 commands 里注册 def，再在这里补一个同 id 的 handler 即可；
+  // 动态条目（分类 / 画板）不进注册表，按当前库内容在下面即时拼装。
+  const commandHandlers: Record<string, () => void> = {
+    'view.all': () => gotoView('all'),
+    'view.inbox': () => gotoView('inbox'),
+    'view.fav': () => gotoView('fav'),
+    'view.recent': () => gotoView('recent'),
+    'view.trash': () => gotoView('trash'),
+    'act.import': doImport,
+    'act.settings': () => setSettings(true),
+    'layout.rail-mini': toggleRailMini,
+    'layout.dock-hidden': toggleDockHidden,
+    'layout.guide': () => setGuideOpen(true)
+  };
+  const commandEntries: CommandEntry[] = (() => {
+    const list: CommandEntry[] = commands.list().map(def => ({
+      def,
+      run: () => { const h = commandHandlers[def.id]; if (h) h(); }
+    }));
+    tree.forEach(([c]) => list.push({
+      def: { id: `cat.${c}`, title: `跳转：分类「${c}」`, group: 'category', keywords: [c], order: 30 },
+      run: () => gotoCategory(c)
+    }));
+    worksets.forEach(w => list.push({
+      def: { id: `ws.${w.id}`, title: `跳转：画板「${w.name}」`, group: 'board', keywords: [w.name], order: 40 },
+      run: () => selectBoard(w.id)
+    }));
+    return list;
+  })();
+  const runCommand = (entry: CommandEntry) => { setCmdOpen(false); entry.run(); };
+
   return (
-    <div className="win" data-ark-theme="endfield" data-ark-depth="complex"
-      data-density={prefsFull.ui.density} data-reduce={prefsFull.ui.reducedMotion ? '1' : '0'}>
-      <TitleBar crumb={crumb} maximized={maximized} onSettings={() => setSettings(true)} />
-      <div className="app" data-dock={selected ? 'open' : 'idle'}>
+    <div
+      className="win"
+      data-ark-theme="endfield"
+      data-ark-depth="complex"
+      data-density={prefsFull.ui.density}
+      data-reduce={prefsFull.ui.reducedMotion ? '1' : '0'}
+      data-dockhide={dockHidden ? '1' : '0'}
+    >
+      <TitleBar
+        crumb={crumb}
+        maximized={maximized}
+        onSettings={() => setSettings(true)}
+        dockHidden={dockHidden}
+        onToggleDock={toggleDockHidden}
+      />
+      <div
+        className="app"
+        data-dock={selected ? 'open' : 'idle'}
+        data-rail={railMini ? 'mini' : 'full'}
+        data-dockhide={dockHidden ? '1' : '0'}
+      >
         <Rail
           view={view}
-          setView={v => { setView(v); setCategory(null); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
+          setView={v => gotoView(v)}
           stats={stats}
           tree={tree}
           counts={counts}
           category={category}
-          setCategory={c => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); }}
+          setCategory={gotoCategory}
           sub={sub}
           setSub={setSub}
           railViews={railViews}
@@ -679,6 +778,10 @@ export default function App() {
           onRenameWorkset={renameBoard}
           onDeleteWorkset={id => setConfirmWs(worksets.find(w => w.id === id) || null)}
           onDropOnWorkset={onDropOnWorkset}
+          railMini={railMini}
+          onToggleRailMini={toggleRailMini}
+          sectionCollapsed={railCollapsed}
+          onToggleSection={toggleSection}
         />
 
         <main className="stage">
@@ -753,6 +856,8 @@ export default function App() {
           busy={busy}
           editSignal={editSignal}
           worksets={worksets}
+          dockTab={dockTab}
+          onTab={pickDockTab}
           onFav={async id => { await window.api.lib.toggleFav(id); await refresh(); }}
           onCopy={async id => { const ok = await window.api.lib.copyImage(id); if (ok) setToast({ msg: '已复制到剪贴板，可 Ctrl+V 贴进画布' }); }}
           onReveal={id => window.api.lib.reveal(id)}
@@ -785,6 +890,13 @@ export default function App() {
 
       <StatusBar root={root} total={stats.total} busy={busy} />
       <ResizeHandles />
+
+      {/* 问询 agent 落位：FAB + 抽屉骨架（只留位，不实现问答） */}
+      <GuideFab open={guideOpen} onToggle={() => setGuideOpen(o => !o)} />
+      <GuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
+
+      {/* 命令面板：未来功能的统一入口 */}
+      <CommandPalette open={cmdOpen} entries={commandEntries} onClose={() => setCmdOpen(false)} onRun={runCommand} />
 
       {fileOver && <DropVeil />}
       {lightboxItem && <Lightbox item={lightboxItem} onClose={() => setLightboxId(null)} onNav={navLightbox} />}

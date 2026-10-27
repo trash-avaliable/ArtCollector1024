@@ -35,6 +35,13 @@ if (process.env.RC_NOGPU === '1') {
   try { app.disableHardwareAcceleration(); } catch { }
 }
 
+// 测试隔离钩子：Windows 上 Electron 的 userData 走系统「漫游 AppData」known-folder，
+// 不吃 APPDATA 环境变量——冒烟测试必须显式传 RC_USERDATA 才不会碰用户真实配置
+// （config.json / window-state.json / clip 全部随之隔离）。
+if (process.env.RC_USERDATA) {
+  try { app.setPath('userData', process.env.RC_USERDATA); } catch (e) { console.error('rc: set userData failed', e); }
+}
+
 let win = null;
 let tray = null;
 let quitting = false;
