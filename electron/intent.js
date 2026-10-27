@@ -58,9 +58,14 @@ function extractUrl(text) {
   }
 }
 
-/** 取 hostname（小写，去掉前导 www.）；非法 URL 返回 null */
+/** 取 hostname（小写，去掉前导 www.）；非法 URL 返回 null；裸域名也能解析 */
 function domainOf(url) {
-  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ''); }
+  try {
+    let s = String(url || '').trim();
+    if (!s) return null;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = 'http://' + s;
+    return new URL(s).hostname.toLowerCase().replace(/^www\./, '') || null;
+  }
   catch { return null; }
 }
 
@@ -92,7 +97,7 @@ function parseCnNumber(cn) {
   if (!cn) return NaN;
   // 「两」先行归一
   let s = cn.replace(/两/g, '二');
-  // 处理 X十Y / X百Y / X千Y 的标准逐段累加
+  // 处理 X十Y / X百Y / X千Y 的标准逐段累加；结尾落单的数字要加上（十五 = 10+5）
   let total = 0, section = 0, num = 0;
   for (const ch of s) {
     if (ch in CN_DIGIT) { num = CN_DIGIT[ch]; }
@@ -103,7 +108,7 @@ function parseCnNumber(cn) {
       if (unit >= 100) { total += section; section = 0; }
     } else return NaN;
   }
-  return total + section;
+  return total + section + num;
 }
 
 /**
@@ -133,10 +138,17 @@ function extractCount(text) {
     if (Number.isFinite(n) && n > 0) return n;
   }
 
-  // 3) 裸中文数字（要 / 来 / 找 后面）
-  const cnBare = s.match(/(?:要|来|找|收集|采集|下载)([零一二两三四五六七八九十百千]{1,6})/);
+  // 3) 裸中文数字（要 / 来 / 找 后面）；「一些 / 一点」是模糊量词，不算数
+  const cnBare = s.match(/(?:要|来|找|收集|采集|下载)\s*([零一二两三四五六七八九十百千]{1,6})(?![些点])/);
   if (cnBare) {
     const n = parseCnNumber(cnBare[1]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  // 4) 整句就是一个中文数字（「三十」直接回答反问的场景）
+  const trimmed = s.trim();
+  if (/^[零一二两三四五六七八九十百千]{1,7}$/.test(trimmed)) {
+    const n = parseCnNumber(trimmed);
     if (Number.isFinite(n) && n > 0) return n;
   }
   return null;
@@ -255,9 +267,14 @@ function parseRobots(txt, defaultAgent = 'refcollector') {
     const group = exact || star;
     if (!group || !group.rules.length) return true;
 
-    // 通配转正则：* → .*，结尾 $ 锚定
-    const toRe = (pat) => new RegExp('^' + pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*') + (pat.endsWith('$') ? '$' : ''));
+    // 通配转正则：* → .*，结尾 $ 锚定（先摘下 $ 再转义，避免被转成字面量）
+    const toRe = (pat) => {
+      const anchored = pat.endsWith('$');
+      const body = (anchored ? pat.slice(0, -1) : pat)
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*');
+      return new RegExp('^' + body + (anchored ? '$' : ''));
+    };
     let best = null; // { len, allow }
     for (const r of group.rules) {
       if (!toRe(r.path).test(p)) continue;
@@ -283,13 +300,22 @@ function urlFilename(url) {
 }
 
 /**
- * 垃圾图判断：文件名含 logo/icon/ad/banner/avatar 等词 → true。
+ * 垃圾图判断：路径里任一段（含文件名）命中 logo/icon/ad/banner/avatar 等词 → true。
+ * 按「段 + 词边界」匹配，避免 iconic / adobe 这类普通词误杀。
  * 这是「内容图识别」的第一道（第二道是下载后的实际尺寸 <300px）。
  */
 function isJunkImageUrl(url) {
-  const name = urlFilename(url);
-  if (!name) return false;
-  return JUNK_NAME.test(name);
+  let segs = [];
+  try {
+    segs = new URL(url).pathname.split('/').filter(Boolean);
+  } catch {
+    const name = urlFilename(url);
+    return name ? JUNK_NAME.test(name) : false;
+  }
+  return segs.some(seg => {
+    try { seg = decodeURIComponent(seg); } catch { }
+    return JUNK_NAME.test(seg);
+  });
 }
 
 /** 看扩展名像不像图片（无扩展名的 <img> src 不在这里否决，下载时按 Content-Type 定） */
