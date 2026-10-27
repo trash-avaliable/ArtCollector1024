@@ -12,6 +12,7 @@
     "dev:electron": "cross-env VITE_DEV=1 electron .",
     "dist": "vite build && electron-builder --win nsis",
     "test": "node --test tests/*.test.mjs",
+    "rtm": "node scripts/rtm.mjs",
     "bench:clip": "electron scripts/clip-benchmark.mjs"
   },
   "dependencies": {
