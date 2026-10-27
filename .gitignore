@@ -26,3 +26,7 @@ installed.png
 # CLIP 模型与冒烟测试库（工作副本内出现时不入库）
 /.rc-models/
 /.rc-test-lib/
+
+# electron userData 测试产物
+.rc-test-user/
+.rc-layout-out/
