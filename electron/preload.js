@@ -92,11 +92,18 @@ contextBridge.exposeInMainWorld('api', {
     classify: (ids) => ipcRenderer.invoke('clip:classify', ids),
     status: () => ipcRenderer.invoke('clip:status')
   },
+  crawler: {
+    parse: (text) => ipcRenderer.invoke('crawler:parse', text),
+    start: (task) => ipcRenderer.invoke('crawler:start', task),
+    cancel: () => ipcRenderer.send('crawler:cancel'),
+    guardrails: () => ipcRenderer.invoke('crawler:guardrails')
+  },
   on: {
     importProgress: (cb) => on('import:progress', cb),
     importDone: (cb) => on('import:done', cb),
     clipImage: (cb) => on('clip:image', cb),
     clipProgress: (cb) => on('clip:progress', cb),
+    crawlerProgress: (cb) => on('crawler:progress', cb),
     focusSearch: (cb) => on('ui:focus-search', cb),
     saveClip: (cb) => on('ui:save-clip', cb),
     librarySwitched: (cb) => on('library:switched', cb),

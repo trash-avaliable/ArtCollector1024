@@ -19,9 +19,10 @@ export const Toolbar = forwardRef<HTMLInputElement, {
   simLabel?: string | null; onClearSim?: () => void;
   worksetLabel?: string | null; onClearWorkset?: () => void;
   onImport: () => void; onImportTo: (cat: string) => void;
+  onCapture?: () => void;
   onClipInbox?: () => void;
 }>(function Toolbar(p, ref) {
-  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, simLabel, onClearSim, worksetLabel, onClearWorkset, onClipInbox } = p;
+  const { query, setQuery, sort, setSort, category, sub, cats, setCategory, colorFilter, onClearColor, onImport, onImportTo, onCapture, simLabel, onClearSim, worksetLabel, onClearWorkset, onClipInbox } = p;
   const [menu, setMenu] = useState(false);
   const mref = useRef<HTMLDivElement>(null);
 
@@ -75,6 +76,14 @@ export const Toolbar = forwardRef<HTMLInputElement, {
       </div>
 
       <div className="tb-right">
+        {onCapture && (
+          <button className="btn-capture" onClick={onCapture} title="内置网页采集 agent：一句话描述想要什么，缺要素会反问；遵守 robots.txt、诚实 UA、不带 Cookie">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.8 2.6 2.8 15.4 0 18M12 3c-2.8 2.6-2.8 15.4 0 18" />
+            </svg>
+            采集
+          </button>
+        )}
         {onClipInbox && (
           <button className="btn-clip-inbox" onClick={onClipInbox} title="对当前待分类的图逐张跑 CLIP 零样本分类，达标才写库">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">

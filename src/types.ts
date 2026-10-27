@@ -88,6 +88,29 @@ export type ClipResult = {
 
 export type Sort = 'new' | 'old' | 'name' | 'size';
 
+/* ---------- 网页采集 agent ---------- */
+
+/** 主进程 crawler:progress 事件的负载（各阶段共用，缺的累加器字段按 0 兜底） */
+export type CrawlerProgress = {
+  stage: 'page' | 'download' | 'import' | 'done';
+  found: number; downloaded: number; imported: number; dup: number;
+  skipped: number; failed: number; pages: number;
+  current?: string; message?: string; reason?: string | null; cap?: number;
+  error?: string;
+};
+
+/** crawler:start 的返回（任务跑完才 resolve；error 表示根本没跑起来） */
+export type CrawlerSummary = CrawlerProgress & { stopped?: boolean };
+
+/** renderer 侧的解析结果（主进程 electron/intent.js parseIntent 的产出） */
+export type CrawlIntent = {
+  url: string | null; domain: string | null;
+  count: number | null; keyword: string | null;
+  missing: ('url' | 'count' | 'keyword')[];
+};
+
+export type CrawlTask = { url: string; keyword: string; count: number; category?: string };
+
 export type Prefs = {
   railViews?: View[]; railCats?: string[];
   /** 左栏整体折叠成 56px 图标轨 */
@@ -193,11 +216,18 @@ declare global {
         classify(ids: string[]): Promise<ClipResult>;
         status(): Promise<{ modelsDir: string; modelsReady: boolean }>;
       };
+      crawler: {
+        parse(text: string): Promise<CrawlIntent>;
+        start(task: CrawlTask): Promise<CrawlerSummary | { error: string }>;
+        cancel(): void;
+        guardrails(): Promise<{ ua: string }>;
+      };
       on: {
         importProgress(cb: (p: { done: number; total: number; added: number }) => void): () => void;
         importDone(cb: (p: any) => void): () => void;
         clipImage(cb: (c: ClipInfo) => void): () => void;
         clipProgress(cb: (p: ClipProgress) => void): () => void;
+        crawlerProgress(cb: (p: CrawlerProgress) => void): () => void;
         focusSearch(cb: () => void): () => void;
         saveClip(cb: () => void): () => void;
         librarySwitched(cb: (p: { root: string; stats: Stats }) => void): () => void;

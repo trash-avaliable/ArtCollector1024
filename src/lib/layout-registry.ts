@@ -125,6 +125,7 @@ commands.register({ id: 'view.fav', title: '跳转：收藏', group: 'view', key
 commands.register({ id: 'view.recent', title: '跳转：最近浏览', group: 'view', keywords: ['recent', 'zuijin', 'zj'], order: 13 });
 commands.register({ id: 'view.trash', title: '跳转：回收站', group: 'view', keywords: ['trash', 'huishouzhan', 'hsz'], order: 14 });
 commands.register({ id: 'act.import', title: '导入图片 / 文件夹', group: 'action', keywords: ['import', 'daoru', 'dr'], order: 100 });
+commands.register({ id: 'act.capture', title: '网页采集：一句话找参考图', group: 'action', keywords: ['capture', 'crawler', 'caiji', 'cj', '采集'], order: 105 });
 commands.register({ id: 'act.settings', title: '库设置', group: 'action', keywords: ['settings', 'shezhi', 'sz'], order: 110 });
 commands.register({ id: 'layout.rail-mini', title: '切换：左栏图标轨', group: 'layout', keywords: ['rail', 'mini', 'zuoLan', 'zld'], order: 200 });
 commands.register({ id: 'layout.dock-hidden', title: '切换：收起右栏检查器', group: 'layout', keywords: ['dock', 'shouqi', 'sq'], order: 201 });

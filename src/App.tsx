@@ -4,6 +4,7 @@ import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
 import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
+import { CrawlerPanel } from './components/Crawler';
 import { Settings } from './components/Settings';
 import { fullPrefs, matchesAppKey, type FullPrefs } from './lib/settings-core';
 import { CommandPalette } from './components/CommandPalette';
@@ -62,6 +63,7 @@ export default function App() {
   const [confirmCat, setConfirmCat] = useState<string | null>(null);
   const [confirmWs, setConfirmWs] = useState<Workset | null>(null);
   const [settings, setSettings] = useState(false);
+  const [capture, setCapture] = useState(false);
   const [bridge, setBridge] = useState<{ port: number; token: string; extDir: string } | null>(null);
   const [prefsFull, setPrefsFull] = useState<FullPrefs>(fullPrefs(undefined));
   const [hotkeys, setHotkeys] = useState<{ bindings: Record<string, string>; registered: Record<string, boolean> } | null>(null);
@@ -201,6 +203,7 @@ export default function App() {
         // 逐层退出：命令面板 → 问询抽屉 → 选择 → 各弹层
         if (cmdOpen) { setCmdOpen(false); return; }
         if (guideOpen) { setGuideOpen(false); return; }
+        if (capture) { setCapture(false); return; }   // 采集面板关闭时自己会顺带取消运行中的任务
         if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
         setLightboxId(null); setClip(null);
         setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setConfirmWs(null); setSettings(false);
@@ -220,7 +223,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen]);
+  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen, capture]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => { e.preventDefault(); };
@@ -707,6 +710,7 @@ export default function App() {
     'view.recent': () => gotoView('recent'),
     'view.trash': () => gotoView('trash'),
     'act.import': doImport,
+    'act.capture': () => setCapture(true),
     'act.settings': () => setSettings(true),
     'layout.rail-mini': toggleRailMini,
     'layout.dock-hidden': toggleDockHidden,
@@ -804,6 +808,7 @@ export default function App() {
             onClearWorkset={() => selectBoard(null)}
             onImport={doImport}
             onImportTo={importTo}
+            onCapture={() => setCapture(true)}
             onClipInbox={view === 'inbox' && !category && !sim && !colorFilter && stats.inbox > 0 ? clipInbox : undefined}
           />
           <div className="gridwrap">
@@ -894,6 +899,18 @@ export default function App() {
       {/* 问询 agent 落位：FAB + 抽屉骨架（只留位，不实现问答） */}
       <GuideFab open={guideOpen} onToggle={() => setGuideOpen(o => !o)} />
       <GuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
+
+      {/* 网页采集 agent：对话式补全 + 合规护栏，入库后 refresh 复用 import:done 的刷新模式 */}
+      <CrawlerPanel
+        open={capture}
+        prefs={prefsFull}
+        onSetPrefs={onSetPrefs}
+        onDone={async (s) => {
+          await refreshRef.current();
+          setToast({ msg: s.imported ? `采集入库 ${s.imported} 张（来源 URL 已归档）` : '这次没采到可入库的图' });
+        }}
+        onClose={() => setCapture(false)}
+      />
 
       {/* 命令面板：未来功能的统一入口 */}
       <CommandPalette open={cmdOpen} entries={commandEntries} onClose={() => setCmdOpen(false)} onRun={runCommand} />

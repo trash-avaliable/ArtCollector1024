@@ -1187,3 +1187,98 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 .guide-fab.on svg { stroke: var(--ink); }
 .win[data-dock="idle"] .guide-fab { right: 72px; }
 .win[data-dockhide="1"] .guide-fab { right: 16px; }
+
+/* ================= 网页采集面板：对话式补全 + 参数确认 + 进度 ================= */
+.crawlpanel {
+  position: relative; width: 660px; max-width: 94vw; max-height: 86vh; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--ink); box-shadow: var(--sh-3);
+  padding: 16px 16px 14px; animation: popIn 180ms var(--ease);
+}
+.crawlpanel::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--grad-signal);
+}
+.chead { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.chead .ct { font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+.chead .csub { font-size: 11px; color: var(--muted); }
+.chead .cclose {
+  margin-left: auto; width: 26px; height: 26px; font-size: 15px; line-height: 1;
+  border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2);
+}
+.chead .cclose:hover { border-color: var(--ink); }
+
+/* 合规首用确认 */
+.cgate { margin-top: 10px; border: 1px solid var(--line-2); background: var(--panel-2); padding: 10px 12px; }
+.cgate .cgt { font-size: 12px; font-weight: 600; }
+.cgate .cgl { margin: 8px 0 10px; padding-left: 18px; font-size: 11.5px; line-height: 1.9; color: var(--ink-2); }
+.cgate .cgchk { display: flex; gap: 8px; align-items: flex-start; font-size: 11.5px; color: var(--ink-2); cursor: default; }
+.cgate .cgok {
+  margin-top: 10px; height: 32px; padding: 0 16px; font-size: 12px; font-weight: 600;
+  background: var(--grad-signal); border: 1px solid rgba(26, 28, 23, .3);
+}
+.cgate .cgok:disabled { opacity: .45; cursor: default; }
+
+/* 对话区 */
+.cchat { flex: 1 1 auto; min-height: 160px; max-height: 300px; overflow-y: auto; padding: 12px 2px 6px; }
+.crow { display: flex; margin-bottom: 8px; }
+.crow.user { justify-content: flex-end; }
+.crow.agent { justify-content: flex-start; }
+.cbubble {
+  max-width: 82%; padding: 7px 10px; font-size: 12px; line-height: 1.65; white-space: pre-wrap;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2);
+}
+.crow.user .cbubble { background: var(--dock); color: #f2f5ea; border-color: var(--ink); }
+.cbubble.ok { border-left: 3px solid #3f9d5f; }
+.cbubble.warn { border-left: 3px solid #d9a800; }
+.cbubble.typing { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
+/* 输入行 */
+.cask { display: flex; gap: 8px; margin-top: 4px; }
+.cask .cinput {
+  flex: 1; height: 36px; padding: 0 10px; font-size: 12px;
+  border: 1px solid var(--line-2); background: #fff; color: var(--ink);
+}
+.cask .cinput:focus { border-color: var(--ink); }
+.cask .csend, .cparams .cstart, .cparams .ccancel {
+  height: 36px; padding: 0 16px; font-size: 12px; border: 1px solid var(--line-2); background: var(--panel);
+}
+.cask .csend:hover:not(:disabled), .cparams .cstart:hover:not(:disabled) { border-color: var(--ink); }
+.cask .csend:disabled, .cparams .cstart:disabled { opacity: .45; cursor: default; }
+.cask .csend { font-weight: 600; }
+
+/* 参数确认 + 进度 */
+.cparams { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.cprowandctl { display: flex; gap: 10px; align-items: flex-start; }
+.cprog { flex: 1; min-width: 0; opacity: .55; }
+.cprog[data-on="1"] { opacity: 1; }
+.cprog .cbar { height: 6px; background: var(--panel-2); border: 1px solid var(--line-2); overflow: hidden; }
+.cprog .cbar i { display: block; height: 100%; background: var(--grad-signal); transition: width 240ms var(--ease); }
+.cprog .ccounts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.cprog .ccnt b { font-family: var(--mono); font-weight: 500; color: var(--ink); margin-left: 2px; }
+.cprog .ccnt[data-k="imported"] b { color: #2f7d4d; }
+.cprog .ccur {
+  margin-top: 4px; font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cparams .cstart { background: var(--grad-signal); border-color: rgba(26, 28, 23, .3); font-weight: 600; white-space: nowrap; }
+.cparams .ccancel { border-color: #c73b3b; color: #c73b3b; white-space: nowrap; }
+
+.cgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 10px; }
+.cfield { display: flex; flex-direction: column; gap: 4px; }
+.cfield > span { font-size: 11px; color: var(--muted); }
+.cfield input {
+  height: 32px; padding: 0 9px; font-size: 12px;
+  border: 1px solid var(--line-2); background: #fff; color: var(--ink);
+}
+.cfield input:focus { border-color: var(--ink); }
+.cfield.cfull { grid-column: 1 / -1; }
+.cfield.cchk { flex-direction: row; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2); }
+.cmiss { margin-top: 8px; font-size: 11.5px; color: #8a6d00; }
+
+/* 工具栏采集按钮（与 btn-clip-inbox 同族） */
+.btn-capture {
+  height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
+  font-size: 12px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2);
+  transition: border-color var(--direct) var(--ease), background var(--direct) var(--ease);
+}
+.btn-capture:hover { border-color: var(--ink); }
+.btn-capture svg { stroke: var(--ink-2); fill: none; }
