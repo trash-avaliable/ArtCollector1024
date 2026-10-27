@@ -17,6 +17,10 @@ const LIB = path.join(OUT, 'lib');
 const APPDATA = path.join(OUT, 'appdata');
 const IMG = path.join(OUT, 'img');
 const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe');
+// 无 node_modules 的 worktree（如纯脚本 CI）没有 electron 可执行文件：UI 冒烟跳过而不是红，
+// 有 electron 的常规开发机上行为不变。
+const HAS_ELECTRON = fs.existsSync(ELECTRON);
+const SKIP_NO_ELECTRON = HAS_ELECTRON ? false : `跳过：找不到 electron 可执行文件（${ELECTRON}），本机需 npm install 后再跑 UI 冒烟`;
 
 /* ---------------- 零依赖 PNG 生成（zlib + 手写 CRC32） ---------------- */
 
@@ -128,7 +132,7 @@ const usedAtRows = () => {
 
 /* ---------------- 用例 ---------------- */
 
-test('RefCollector 交互回归冒烟（导入 → 占位 → 按下即拖 → 直送PS降级 → 复制）', async () => {
+test('RefCollector 交互回归冒烟（导入 → 占位 → 按下即拖 → 直送PS降级 → 复制）', { skip: SKIP_NO_ELECTRON }, async () => {
   // 0) 干净环境
   killApp();
   fs.rmSync(OUT, { recursive: true, force: true });
@@ -266,7 +270,7 @@ const OUT2 = path.join(ROOT, '.rc-layout-out');
 const LIB2 = path.join(OUT2, 'lib');
 const IMG2 = path.join(OUT2, 'img');
 
-test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', async () => {
+test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
   killApp();
   fs.rmSync(OUT2, { recursive: true, force: true });
   for (const d of [OUT2, LIB2, IMG2]) fs.mkdirSync(d, { recursive: true });
