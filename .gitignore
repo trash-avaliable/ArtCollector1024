@@ -45,3 +45,6 @@ installed.png
 
 # 问询助手冒烟截图产物
 .rc-guide-out/
+
+# 笔记冒烟截图产物（RTM-S24）
+.rc-notes-out/
