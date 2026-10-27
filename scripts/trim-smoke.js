@@ -1,6 +1,6 @@
 'use strict';
 /* 冒烟测试：detectTrim / makeThumb(crop) / trimItems。跑法：
-   env -u ELECTRON_RUN_AS_NODE ./node_modules/electron/dist/electron.exe scripts/test-trim.js */
+   env -u ELECTRON_RUN_AS_NODE ./node_modules/electron/dist/electron.exe scripts/trim-smoke.js（改名脱离 node --test 文件名扫描，它本来就要在 electron 里跑，不是 node:test 文件） */
 const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
