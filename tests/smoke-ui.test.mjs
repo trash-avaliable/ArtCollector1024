@@ -376,7 +376,8 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认�
   assert.ok(c.jsResult.hidden, 'data-dockhide=1');
   assert.ok(c.jsResult.display === 'none' || c.jsResult.display === 'gone', 'dock 视觉移除');
   assert.equal(c.jsResult.cols, 2, '网格塌成两列（stage 吃满）');
-  assert.ok(c.jsResult.after > c.jsResult.before + 100, `stage 变宽（${c.jsResult.before} → ${c.jsResult.after}px）`);
+  // 收起收益取决于此前 dock 态：完整展开 +360，脊柱态 +56——两种都算「stage 拿回空间」
+  assert.ok(c.jsResult.after > c.jsResult.before + 40, `stage 变宽（${c.jsResult.before} → ${c.jsResult.after}px）`);
 
   // 阶段 D：Ctrl+K 命令面板（静态注册 + 动态分类），↑↓/Enter 由单测覆盖数据层
   const jsD = `(async()=>{
@@ -396,7 +397,8 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认�
   const d = await runElectron({ js: jsD, shot: 'layout-04-cmdk.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('d'), extraEnv: envOf('d') });
   assert.ok(d.jsResult.open, 'Ctrl+K 打开命令面板');
   assert.ok(d.jsResult.items >= 10, '默认命令齐全（实测 ' + d.jsResult.items + ' 条，含动态分类）');
-  assert.equal(d.jsResult.firstSelected, '跳转：全部素材', '首条默认选中（order=10 的视图命令）');
+  // .cmditem 的 textContent 含分组后缀（…视图 / …画板），按前缀断言
+  assert.ok(String(d.jsResult.firstSelected).startsWith('跳转：全部素材'), '首条默认选中（order=10 的视图命令），实际：' + d.jsResult.firstSelected);
   assert.ok(d.jsResult.focused, '打开即聚焦搜索框');
 
   // 阶段 E：问询抽屉（FAB 点开 → 欢迎态对话流 + 推荐问题 chips）

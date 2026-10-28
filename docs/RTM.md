@@ -1,6 +1,6 @@
 # RefCollector 需求跟踪矩阵（RTM）v1
 
-> 生成时间：2026-10-28 00:45 UTC · 命令：`npm run rtm`（scripts/rtm.mjs，扫描 electron/ src/ 实现与 tests/ 测试名，只读文件）
+> 生成时间：2026-10-28 00:54 UTC · 命令：`npm run rtm`（scripts/rtm.mjs，扫描 electron/ src/ 实现与 tests/ 测试名，只读文件）
 > 状态推导：✅ done = 有命中且有匹配测试 · 🟡 partial = 有命中无测试 · 🔴 todo = 零命中；测试是否真正通过以 `npm test` 为准。
 > 种子维护：需求/验收标准/关键词在 `scripts/rtm-reqs.json`（agent 维护）；本文件自动生成，勿手改。
 
@@ -16,7 +16,7 @@
 | RTM-S6 | 内容寻址去重 + 缩略图 | done | ✅ done | electron/crawler.js:15 · electron/tools.js:552 · electron/htmlparse.js:60（共 26 行命中） | tests/crawler-e2e.test.mjs ×1 · tests/guide-engine.test.mjs ×1 |
 | RTM-S7 | 回收站（软删/恢复/彻底删） | done | ✅ done | electron/db.js:121 · electron/tools.js:412 · src/App.tsx:26（共 109 行命中） | tests/guide-engine.test.mjs ×1 · tests/notes.test.mjs ×2 · tests/tags.test.mjs ×1 |
 | RTM-S8 | 子分类 | done | ✅ done | electron/clip.js:119 · electron/main.js:659 · src/App.tsx:707（共 75 行命中） | tests/category.test.mjs ×4 |
-| RTM-S9 | 橡皮筋框选 | done | 🟡 partial | src/components/Settings.tsx:194 · src/components/Stage.tsx:177 · src/lib/boxhit.ts:2（共 26 行命中） | — |
+| RTM-S9 | 橡皮筋框选 | done | ✅ done | src/components/Settings.tsx:194 · src/components/Stage.tsx:177 · src/lib/boxhit.ts:2（共 26 行命中） | tests/boxhit.test.mjs ×6 |
 | RTM-S10 | 相似图（主色 Lab + 宽高比加权；种子原写 dHash+主色） | done | ✅ done | electron/tools.js:931 · src/App.tsx:788 · src/components/Dock.tsx:420（共 38 行命中） | tests/guide-engine.test.mjs ×1 |
 | RTM-S11 | 置顶参考窗（透明度 / 鼠标穿透） | done | ✅ done | electron/main.js:155 · electron/preload.js:96 · electron/tools.js:1125（共 40 行命中） | tests/guide-engine.test.mjs ×1 · tests/notes.test.mjs ×3 |
 | RTM-S12 | 白边裁剪（自动 + 批量 + 灯箱裁剪显示） | done | ✅ done | electron/db.js:125 · electron/main.js:465 · electron/store.js:43（共 71 行命中） | tests/aspect.test.mjs ×5 · tests/guide-engine.test.mjs ×1 |
@@ -38,13 +38,12 @@
 
 ## 统计
 
-- ✅ done：24 条 —— RTM-S1、RTM-S2、RTM-S3、RTM-S4、RTM-S5、RTM-S6、RTM-S7、RTM-S8、RTM-S10、RTM-S11、RTM-S12、RTM-S13、RTM-S14、RTM-S15、RTM-S16、RTM-S17、RTM-S18、RTM-S19、RTM-S20、RTM-S21、RTM-S22、RTM-S23、RTM-S24、RTM-S25
-- 🟡 partial：1 条 —— RTM-S9
+- ✅ done：25 条 —— RTM-S1、RTM-S2、RTM-S3、RTM-S4、RTM-S5、RTM-S6、RTM-S7、RTM-S8、RTM-S9、RTM-S10、RTM-S11、RTM-S12、RTM-S13、RTM-S14、RTM-S15、RTM-S16、RTM-S17、RTM-S18、RTM-S19、RTM-S20、RTM-S21、RTM-S22、RTM-S23、RTM-S24、RTM-S25
+- 🟡 partial：0 条
 - 🔴 todo：2 条 —— RTM-S26、RTM-S27
 
-## 基线 vs 推导不一致（5 处）—— agent 种子认知与扫描事实的差异，正是本矩阵要暴露的东西
+## 基线 vs 推导不一致（4 处）—— agent 种子认知与扫描事实的差异，正是本矩阵要暴露的东西
 
-- **RTM-S9**：基线 done → 推导 🟡 partial —— 实现已命中但没有匹配到测试名：补 node:test 单测，或把测试名带上 RTM-S9
 - **RTM-S22**：基线 todo → 推导 ✅ done —— 种子标记未做，但扫描有命中（设置/数据层/占位可能已先落地，见明细备注）；备注：设置页「采集与合规」段（crawler 参数 + robots 护栏文案）已先落地；agent 本体（NL 命令/反问/抓取调度）未实现
 - **RTM-S23**：基线 todo → 推导 ✅ done —— 种子标记未做，但扫描有命中（设置/数据层/占位可能已先落地，见明细备注）；备注：当前仅 App.tsx 抽屉骨架留位（属 S21 范畴），检索式问答本体未实现
 - **RTM-S24**：基线 todo → 推导 ✅ done —— 种子标记未做，但扫描有命中（设置/数据层/占位可能已先落地，见明细备注）；备注：前瞻关键词（noteId/note_id/笔记正文）：实现落地后 RTM 自动翻转为 🟡/✅
@@ -152,9 +151,15 @@
 
 ### RTM-S9 橡皮筋框选
 - 来源：主干 v0.2（P1 批次）
-- 基线：done · 推导：🟡 partial
+- 基线：done · 推导：✅ done
 - 实现位置：`src/components/Settings.tsx:194`、`src/components/Stage.tsx:177`、`src/lib/boxhit.ts:2`
-- 关联测试：—
+- 关联测试（6 条）：
+  - `tests/boxhit.test.mjs` — RTM-S9: 正向拖拽（左上→右下）命中内部卡片
+  - `tests/boxhit.test.mjs` — RTM-S9: 反向拖拽（右下→左上，x1<x0）同样命中——对角顺序无关
+  - `tests/boxhit.test.mjs` — RTM-S9: 相切不算命中（贴边划过不误选）
+  - `tests/boxhit.test.mjs` — RTM-S9: 完全在外不命中
+  - `tests/boxhit.test.mjs` — RTM-S9: 部分相交命中（框选只需与卡片相交，不需包含）
+  - …（其余 1 条略）
 - 验收标准：
   1. 在瀑布流空白处按下拖动出现橡皮筋框（fixed 挂 body、无过渡跟手）
   2. 松手后框内卡片批量选中，可与 Ctrl/Shift 加选共存
