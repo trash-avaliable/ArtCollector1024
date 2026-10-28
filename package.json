@@ -1,6 +1,6 @@
 {
   "name": "refcollector",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "RefCollector - 画师参考图收集器",
   "main": "electron/main.js",
   "author": "RefCollector",
