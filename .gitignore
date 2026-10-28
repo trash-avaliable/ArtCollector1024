@@ -48,3 +48,6 @@ installed.png
 
 # 笔记冒烟截图产物（RTM-S24）
 .rc-notes-out/
+
+# RTM 冒烟/基准的隔离工作目录
+.rc-smoke-knn/

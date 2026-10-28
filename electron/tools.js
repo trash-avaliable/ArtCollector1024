@@ -13,6 +13,24 @@ const ANIM_EXT = new Set(['.gif', '.webp', '.png']);
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
+/* ---------------- 改判学习 kNN：embedding 的 Float32 ↔ BLOB 往返 ---------------- */
+/* x64 两侧都是小端序，按内存字节直接存取；slice 拷贝一份，避免绑定后底层缓冲被复用改写 */
+
+/** Float32Array → BLOB（Buffer），按视图的实际范围拷贝 */
+function vecToBlob(vec) {
+  if (!(vec instanceof Float32Array) || !vec.length) throw new TypeError('vec 必须是非空 Float32Array');
+  return Buffer.from(vec.buffer.slice(vec.byteOffset, vec.byteOffset + vec.byteLength));
+}
+
+/** BLOB（Buffer）→ Float32Array；dim 只做一致性校验，长度以字节为准 */
+function blobToVec(buf, dim) {
+  const len = (buf.byteLength / 4) | 0;
+  if (dim !== undefined && dim !== null && dim !== len) {
+    throw new Error(`embedding 维度不一致：记录 ${dim}，BLOB 实际 ${len}`);
+  }
+  return new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+}
+
 /** 遍历 GIF 块结构数图像描述符（0x2C）：> 1 即多帧动画 */
 function gifFrameCount(buf) {
   if (buf.length < 14) return 0;
@@ -287,6 +305,17 @@ class LibraryTools {
       setUsed: db.prepare('UPDATE assets SET used_at = ? WHERE id = ?'),
       del: db.prepare('DELETE FROM assets WHERE id = ?'),
       backfill: db.prepare('SELECT * FROM assets WHERE palette_at = 0 LIMIT ?'),
+      /* ---- 改判学习 kNN：asset_embed（v9）---- */
+      embUpsert: db.prepare(`INSERT INTO asset_embed (asset_id, dim, vec, updated_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(asset_id) DO UPDATE SET dim = excluded.dim, vec = excluded.vec, updated_at = excluded.updated_at`),
+      embById: db.prepare('SELECT dim, vec FROM asset_embed WHERE asset_id = ?'),
+      /* kNN 样本：该分类下（非回收站）带 embedding 的图，最近 N 张——用户手动归类过 / 之前采纳过 */
+      embSamples: db.prepare(`SELECT ae.asset_id AS id, ae.dim AS dim, ae.vec AS vec FROM asset_embed ae
+        JOIN assets a ON a.id = ae.asset_id
+        WHERE a.category = ? AND a.deleted_at = 0
+        ORDER BY a.added_at DESC, ae.updated_at DESC LIMIT ?`),
+      embMissing: db.prepare(`SELECT id FROM assets WHERE deleted_at = 0 AND id NOT IN (SELECT asset_id FROM asset_embed)
+        ORDER BY added_at DESC LIMIT ?`),
       /* ---- 画板（工作集）---- */
       wsList: db.prepare(`
         SELECT w.id, w.name, w.created_at AS created_at,
@@ -738,6 +767,58 @@ class LibraryTools {
     if (!this.getById(id)) return false;
     this.q.setClip.run(category || '', score ?? -1, Date.now(), id);
     return true;
+  }
+
+  /* ---- 改判学习 kNN：图像 embedding 存取（asset_embed，v9） ---- */
+
+  /** upsert 一条图像 embedding；素材不存在或向量非法返回 false（不抛，分类主流程不该被它打断） */
+  upsertEmbedding(id, vec) {
+    if (!this.q.byId.get(id)) return false;
+    if (!(vec instanceof Float32Array) || !vec.length) return false;
+    this.q.embUpsert.run(id, vec.length, vecToBlob(vec), Date.now());
+    return true;
+  }
+
+  /** 读一条 embedding；没有返回 null */
+  getEmbedding(id) {
+    const r = this.q.embById.get(id);
+    return r ? blobToVec(r.vec, r.dim) : null;
+  }
+
+  /**
+   * kNN 样本：某分类下（非回收站）带 embedding 的图，按 added_at 取最近 limit 张。
+   * 返回 [{ id, vec }]——带 id 是为了让调用方把「正在分类的这张自己」从样本里剔掉，防自匹配刷分。
+   */
+  embedSamples(category, limit = 200) {
+    return this.q.embSamples.all(String(category || ''), limit)
+      .map((r) => ({ id: r.id, vec: blobToVec(r.vec, r.dim) }));
+  }
+
+  /** 还没有 embedding 的非回收站图（后台回填的工作队列，新的在前） */
+  missingEmbedIds(limit = 16) {
+    return this.q.embMissing.all(limit).map((r) => r.id);
+  }
+
+  /**
+   * 给没有 embedding 的图补算（后台回填，仿 backfillPalettes）。
+   * embed 由调用方注入（主进程传 CLIP 引擎的 embedImage，单测传桩），本层不碰模型。
+   * 返回成功落库的张数；读不到文件 / 解码失败的行本轮跳过，下一轮 backfill 会再试。
+   */
+  async backfillEmbeddings({ limit = 16, embed } = {}) {
+    if (typeof embed !== 'function') return 0;
+    const rows = this.q.embMissing.all(limit);
+    let done = 0;
+    for (const r of rows) {
+      const raw = this.q.byId.get(r.id);
+      if (!raw) continue;
+      try {
+        const it = this.toItem(raw);
+        const buf = await fsp.readFile(this.itemFile(it));
+        const vec = await embed(buf);
+        if (this.upsertEmbedding(r.id, vec)) done++;
+      } catch { /* 坏图/读失败：跳过，留在队列里下次再试 */ }
+    }
+    return done;
   }
 
   /** 分类改名：同时改所有素材上的分类字段 */
@@ -1246,4 +1327,4 @@ class LibraryTools {
   }
 }
 
-module.exports = { LibraryTools, TREE, IMAGE_EXT, classify, detectAnimated, detectDimensions };
+module.exports = { LibraryTools, TREE, IMAGE_EXT, classify, detectAnimated, detectDimensions, vecToBlob, blobToVec };
