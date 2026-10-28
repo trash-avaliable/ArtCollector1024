@@ -351,7 +351,9 @@ function startClipWatch() {  clipTimer = setInterval(async () => {
   }, 700);
 }
 
-app.requestSingleInstanceLock();
+// 单实例：第二个实例必须立刻退出（否则托盘/窗口出现两份），首个实例收到 second-instance 唤醒窗口
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) app.quit();
 app.on('second-instance', showWindow);
 
 /* ---- 全局热键：读 prefs（设置页可改），冲突的键位自动跳过 ---- */
@@ -378,6 +380,7 @@ function applyHotkeys() {
 }
 
 app.whenReady().then(async () => {
+  if (!gotTheLock) return;   // 第二实例：什么都不初始化，等 quit 生效
   Object.assign(LOGGER, logger.install(app, ipcMain));
   await store.init();
   store.ensureBridgeToken();
