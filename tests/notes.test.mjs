@@ -42,8 +42,8 @@ const tableExists = (name) => db.prepare(
 
 /* ---------------- 迁移 ---------------- */
 
-test('RTM-S24: SCHEMA_VERSION 升到 8，新库直接带 notes / note_links 两张表', () => {
-  assert.equal(SCHEMA_VERSION, 8);
+test('RTM-S24: SCHEMA_VERSION 升到 9，新库直接带 notes / note_links 两张表', () => {
+  assert.equal(SCHEMA_VERSION, 9);
   assert.ok(tableExists('notes'));
   assert.ok(tableExists('note_links'));
   const idx = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_note_links_asset'").get();
@@ -62,7 +62,7 @@ test('RTM-S24: v7→v8 迁移——老库缺表时打开自动补建（存在性
   assert.ok(tableExists('notes'), '重开后 notes 表补建');
   assert.ok(tableExists('note_links'), '重开后 note_links 表补建');
   const ver = reopened.prepare('PRAGMA user_version').get().user_version;
-  assert.equal(ver, 8, 'user_version 推进到 8');
+  assert.equal(ver, 9, 'user_version 推进到 9');
   reopened.close();
   assert.equal(tools.count(), before, '已有素材不受迁移影响');
 });

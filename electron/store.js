@@ -238,6 +238,8 @@ class Store {
 
   backfillPalettes(opts) { return this.tools.backfillPalettes(opts); }
   backfillAnimated(opts) { return this.tools.backfillAnimated(opts); }
+  backfillEmbeddings(opts) { return this.tools.backfillEmbeddings(opts); }
+  missingEmbedIds(limit) { return this.tools.missingEmbedIds(limit); }
   trimItems(ids, onProgress) { return this.tools.trimItems(ids, onProgress); }
 
   /* ---- 画板（工作集）---- */

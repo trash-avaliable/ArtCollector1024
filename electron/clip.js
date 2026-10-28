@@ -328,6 +328,8 @@ function adoptDecision(score, threshold = DEFAULT_THRESHOLD) {
 const KNN_K = 5;              // 投票取相似度最高的 k 张
 const KNN_SAMPLE_LIMIT = 200; // 每分类参与投票的样本上限（最近 200 张带 embedding 的库内图）
 const KNN_WEIGHT = 0.5;       // 最终分 = 0.5*prompt + 0.5*kNN
+const INBOX_CAT = '待分类';   // 收件箱不算学习样本：堆在这里的图既非手动归类也非采纳过，
+                              // 让它们投票会把「待分类」越喂越肥，AI 永远出不了建议
 
 /** 余弦相似度：内部各自除以模长，入参不必预先归一化；任一模长为 0 返回 NaN */
 function cosine(a, b) {
@@ -487,7 +489,7 @@ class ClipEngine {
     const canEmbed = typeof tools.embedSamples === 'function';
     for (const [cat] of tree) {
       let rows = [];
-      if (canEmbed) {
+      if (canEmbed && cat !== INBOX_CAT) {
         try { rows = tools.embedSamples(cat, KNN_SAMPLE_LIMIT) || []; } catch { rows = []; }
       }
       samplesByCat.set(cat, rows);
@@ -551,4 +553,4 @@ class ClipEngine {
   }
 }
 
-module.exports = { ClipEngine, ClipTokenizer, preprocessImage, downloadModels, PROMPTS, packPixels, l2norm, adoptDecision, blendScores, knnVote, cosine, DEFAULT_THRESHOLD, KNN_K, KNN_SAMPLE_LIMIT, KNN_WEIGHT };
+module.exports = { ClipEngine, ClipTokenizer, preprocessImage, downloadModels, PROMPTS, packPixels, l2norm, adoptDecision, blendScores, knnVote, cosine, DEFAULT_THRESHOLD, KNN_K, KNN_SAMPLE_LIMIT, KNN_WEIGHT, INBOX_CAT };
