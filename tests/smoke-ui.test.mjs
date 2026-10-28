@@ -351,20 +351,23 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认�
 
   // 阶段 C：dock 一键收起（标题栏切换钮），stage 吃满剩余宽度
   const jsC = `(async()=>{
+    // 脊柱态（未选中）收起：+56px 即验证收起机制（选中自动亮出由阶段 A 的 Tab 断言覆盖）
     const btn = document.querySelector('.tb-dock');
     if (!btn) return { error: '标题栏 dock 切换钮缺失' };
-    // 先选中一张图让 dock 完整展开（脊柱态只有 56px，收起收益测不出来）
-    const firstCard = document.querySelector('.card');
-    if (firstCard) { firstCard.click(); await new Promise(r => setTimeout(r, 500)); }
     const app = document.querySelector('.app');
     const stage = document.querySelector('.stage');
     const before = Math.round(stage.getBoundingClientRect().width);
     btn.click();
     await new Promise(r => setTimeout(r, 400));
     const dock = document.querySelector('.dock');
+    const dbgSel = !!document.querySelector('.card.sel');
+    const dbgCards = document.querySelectorAll('.card').length;
     const cols = getComputedStyle(app).gridTemplateColumns.trim().split(/\\s+/).length;
     return {
       hidden: app.dataset.dockhide === '1',
+      rawHide: app.dataset.dockhide,
+      dbgSel,
+      dbgCards,
       display: dock ? getComputedStyle(dock).display : 'gone',
       cols,
       before,
@@ -373,7 +376,7 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认�
   })()`;
   const c = await runElectron({ js: jsC, shot: 'layout-03-dock-hidden.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('c'), extraEnv: envOf('c') });
   assert.ok(!c.jsResult.error, 'dock 切换钮存在: ' + JSON.stringify(c.jsResult));
-  assert.ok(c.jsResult.hidden, 'data-dockhide=1');
+  assert.ok(c.jsResult.hidden, 'data-dockhide=1 → ' + JSON.stringify(c.jsResult));
   assert.ok(c.jsResult.display === 'none' || c.jsResult.display === 'gone', 'dock 视觉移除');
   assert.equal(c.jsResult.cols, 2, '网格塌成两列（stage 吃满）');
   // 收起收益取决于此前 dock 态：完整展开 +360，脊柱态 +56——两种都算「stage 拿回空间」

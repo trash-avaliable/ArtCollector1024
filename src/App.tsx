@@ -203,6 +203,27 @@ export default function App() {
   }, []);
   useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim, wsFilter]);
 
+  // 选中图片时自动亮出检查器：dock 收起/停在笔记 Tab 都是浏览态，点图 = 要看这张图（RTM-S21 反馈修复）
+  // 只在「无选中 → 有选中」跃迁时触发一次：用户选中后再手动收起，保持收起不被弹回
+  const dockHiddenRef = useRef(dockHidden);
+  const dockTabRef = useRef(dockTab);
+  const prevSelCount = useRef(0);
+  useEffect(() => { dockHiddenRef.current = dockHidden; }, [dockHidden]);
+  useEffect(() => { dockTabRef.current = dockTab; }, [dockTab]);
+  useEffect(() => {
+    const grew = selectedIds.size > 0 && prevSelCount.current === 0;
+    prevSelCount.current = selectedIds.size;
+    if (!grew) return;
+    if (dockHiddenRef.current) {
+      setDockHidden(false);
+      window.api.lib.setPrefs({ dockHidden: false } as Partial<Prefs>);
+    }
+    if (dockTabRef.current !== 'inspector') {
+      setDockTab('inspector');
+      window.api.lib.setPrefs({ dockTab: 'inspector' } as Partial<Prefs>);
+    }
+  }, [selectedIds]);
+
   useEffect(() => {
     if (!tree.length) return;
     const all = tree.map(([c]) => c);
