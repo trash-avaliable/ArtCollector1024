@@ -139,6 +139,22 @@ function createWindow() {
   });
   win.on('closed', () => { win = null; });
 
+  // 空白自愈：加载完成后 4 秒界面仍是空的（渲染进程被 DB/配置锁卡住等）→ 自动重载一次并记日志
+  let blankReloads = 0;
+  win.webContents.on('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        if (win.isDestroyed() || win.webContents.isLoading() || blankReloads >= 2) return;
+        const ok = await win.webContents.executeJavaScript("!!document.querySelector('.win')", true).catch(() => false);
+        if (!ok) {
+          blankReloads++;
+          LOGGER.E && LOGGER.E('空白界面自动恢复 #' + blankReloads + '，已自动重载');
+          win.webContents.reload();
+        }
+      } catch { }
+    }, 4000);
+  });
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
