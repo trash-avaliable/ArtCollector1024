@@ -323,6 +323,57 @@ function adoptDecision(score, threshold = DEFAULT_THRESHOLD) {
   return typeof score === 'number' && Number.isFinite(score) && score >= threshold;
 }
 
+/* ---------------- 改判学习 kNN（方案 B） ---------------- */
+
+const KNN_K = 5;              // 投票取相似度最高的 k 张
+const KNN_SAMPLE_LIMIT = 200; // 每分类参与投票的样本上限（最近 200 张带 embedding 的库内图）
+const KNN_WEIGHT = 0.5;       // 最终分 = 0.5*prompt + 0.5*kNN
+
+/** 余弦相似度：内部各自除以模长，入参不必预先归一化；任一模长为 0 返回 NaN */
+function cosine(a, b) {
+  const n = Math.min(a.length, b.length);
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < n; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  if (!na || !nb) return NaN;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+/**
+ * 混合 prompt 余弦分与 kNN 投票分——改判学习的打分口径：
+ * - 无 kNN（knnScore 为 null/undefined/NaN）：原样返回 prompt 分，纯 prompt 路径分毫不差
+ * - 有 kNN：0.5*prompt + 0.5*kNN
+ * - prompt 非法但有 kNN：退化用 kNN；两者都非法：-1
+ */
+function blendScores(promptScore, knnScore) {
+  const p = typeof promptScore === 'number' && Number.isFinite(promptScore) ? promptScore : null;
+  const k = typeof knnScore === 'number' && Number.isFinite(knnScore) ? knnScore : null;
+  if (k === null) return p === null ? -1 : p;
+  if (p === null) return k;
+  return KNN_WEIGHT * p + KNN_WEIGHT * k;
+}
+
+/**
+ * kNN 投票：新图向量 vec 与样本库 samples 逐一算余弦，取最高的 k 个的均值。
+ * - samples 为空 / 没有同维样本 → null（调用方按纯 prompt 分处理，kNN 不介入）
+ * - 维度不符的样本跳过，不炸整个投票
+ * - 样本是 CLIP embedding（已归一化），这里仍按真余弦算，模长差异不偏置结果
+ */
+function knnVote(vec, samples, k = KNN_K) {
+  if (!vec || !Array.isArray(samples) || !samples.length) return null;
+  const sims = [];
+  for (const s of samples) {
+    if (!s || s.length !== vec.length) continue;
+    const c = cosine(vec, s);
+    if (Number.isFinite(c)) sims.push(c);
+  }
+  if (!sims.length) return null;
+  sims.sort((a, b) => b - a);
+  const kk = Math.max(1, Math.min(Number.isFinite(k) && k > 0 ? Math.floor(k) : KNN_K, sims.length));
+  let sum = 0;
+  for (let i = 0; i < kk; i++) sum += sims[i];
+  return sum / kk;
+}
+
 class ClipEngine {
   constructor({ modelsDir, threshold = DEFAULT_THRESHOLD } = {}) {
     this.modelsDir = modelsDir;
@@ -417,32 +468,75 @@ class ClipEngine {
   }
 
   /**
-   * 批量分类：每张图算 embedding → 与各类文本向量算余弦 → top-1 且 ≥ 阈值才写库。
+   * 批量分类（改判学习版）：
+   * 1. 每张图算 embedding → 顺手 upsert asset_embed（无论采纳与否，embedding 是 kNN 的地基）
+   * 2. 打分 = prompt 余弦分；该分类下若有带 embedding 的库内图（用户手动归类过/之前采纳过，
+   *    最近 200 张），再算 kNN top-5 均值，最终分 = 0.5*prompt + 0.5*kNN（blendScores）
+   * 3. top-1 且 ≥ 阈值才采纳；采纳前校验目标分类还在当前分类树里（getTree 取实时树），
+   *    不在 → 跳过并标 stale:true，防止把建议写到已被删除的孤儿分类上（方案 A）
    * onProgress({ done, total, adopted, current }) 每张回调一次。
-   * 返回 { total, adopted, items: [{ id, name, cat, score, adopted, error? }] }
+   * 返回 { total, adopted, items: [{ id, name, cat, score, knn, adopted, stale, error? }] }
    */
-  async classifyIds(tools, ids, tree, { onProgress } = {}) {
+  async classifyIds(tools, ids, tree, { onProgress, getTree } = {}) {
     await this.ensureReady(onProgress);
     if (!Array.isArray(tree) || !tree.length) throw new Error('没有可用的分类树');
     await this.ensureTextEmb(tree);
+
+    // 每分类的 kNN 样本一次取齐（最近 200 张带 embedding 的图）；引擎/库没有 embedding 能力就全空 = 纯 prompt
+    const samplesByCat = new Map();
+    const canEmbed = typeof tools.embedSamples === 'function';
+    for (const [cat] of tree) {
+      let rows = [];
+      if (canEmbed) {
+        try { rows = tools.embedSamples(cat, KNN_SAMPLE_LIMIT) || []; } catch { rows = []; }
+      }
+      samplesByCat.set(cat, rows);
+    }
+    const canPersist = typeof tools.upsertEmbedding === 'function';
 
     const results = [];
     let adopted = 0;
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
       const it = tools.getById(id);
-      let entry = { id, name: it ? it.name : id, cat: '', score: -1, adopted: false };
+      let entry = { id, name: it ? it.name : id, cat: '', score: -1, knn: null, adopted: false, stale: false };
       if (it) {
         try {
           const buf = await fsp.readFile(tools.itemFile(it));
           const imgVec = await this.embedImage(buf);
-          const best = this.bestMatch(imgVec);
-          entry.cat = best.cat;
-          entry.score = +best.score.toFixed(4);
-          if (adoptDecision(best.score, this.threshold)) {
-            tools.setClip(id, best.cat, entry.score);
-            entry.adopted = true;
-            adopted++;
+          // 顺手落库：新图无论采纳与否都存，后台不用再为它补算
+          if (canPersist) { try { tools.upsertEmbedding(id, imgVec); } catch { } }
+
+          // 混合打分：prompt 余弦 + kNN 投票（把「正在分类的这张自己」从样本里剔掉，防自匹配刷分）
+          let bestCat = '', bestScore = -1, bestKnn = null;
+          for (const [cat, tv] of this.textEmb) {
+            let dot = 0;
+            for (let j = 0; j < imgVec.length; j++) dot += imgVec[j] * tv[j];
+            let knn = null;
+            const rows = samplesByCat.get(cat);
+            if (rows && rows.length) {
+              const vecs = [];
+              for (const r of rows) if (r.id !== id) vecs.push(r.vec);
+              knn = knnVote(imgVec, vecs);
+            }
+            const s = blendScores(dot, knn);
+            if (s > bestScore) { bestScore = s; bestCat = cat; bestKnn = knn; }
+          }
+          entry.cat = bestCat;
+          entry.score = +bestScore.toFixed(4);
+          entry.knn = bestKnn === null ? null : +bestKnn.toFixed(4);
+
+          if (adoptDecision(bestScore, this.threshold)) {
+            // 方案 A 采纳校验：目标必须是当前分类树里的活分类（运行中用户删分类也不写孤儿建议）
+            const liveTree = typeof getTree === 'function' ? getTree() : tree;
+            const alive = Array.isArray(liveTree) && liveTree.some(([c]) => c === bestCat);
+            if (!alive) {
+              entry.stale = true;
+            } else {
+              tools.setClip(id, bestCat, entry.score);
+              entry.adopted = true;
+              adopted++;
+            }
           }
         } catch (e) {
           entry.error = e.message || String(e);
@@ -457,4 +551,4 @@ class ClipEngine {
   }
 }
 
-module.exports = { ClipEngine, ClipTokenizer, preprocessImage, downloadModels, PROMPTS, packPixels, l2norm, adoptDecision, DEFAULT_THRESHOLD };
+module.exports = { ClipEngine, ClipTokenizer, preprocessImage, downloadModels, PROMPTS, packPixels, l2norm, adoptDecision, blendScores, knnVote, cosine, DEFAULT_THRESHOLD, KNN_K, KNN_SAMPLE_LIMIT, KNN_WEIGHT };

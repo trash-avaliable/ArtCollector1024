@@ -5,7 +5,8 @@ const { DatabaseSync } = require('node:sqlite');
 
 // v5 = 动图标记（animated）；v6 = 画板两张表；v7 = CLIP 分类列（clip_cat/clip_score/clip_at）
 // v8 = 笔记两张表（notes / note_links）
-const SCHEMA_VERSION = 8;
+// v9 = 改判学习 kNN 的地基：asset_embed 存每张图的 CLIP 图像 embedding（512 维 float32 ≈ 2KB/张）
+const SCHEMA_VERSION = 9;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -96,6 +97,16 @@ CREATE TABLE IF NOT EXISTS note_links (
   PRIMARY KEY (note_id, asset_id)
 );
 CREATE INDEX IF NOT EXISTS idx_note_links_asset ON note_links(asset_id);
+
+-- v9：改判学习 kNN 的地基。每张图的 CLIP 图像 embedding（512 维 float32 的 BLOB，约 2KB/张）。
+-- 存在性守卫：CREATE TABLE IF NOT EXISTS——老库重复升级 / 上次中断留下的表原样保留，绝不重建丢数据。
+-- 删图（purge）走 assets 的 ON DELETE CASCADE 自动清向量，不留孤儿。
+CREATE TABLE IF NOT EXISTS asset_embed (
+  asset_id TEXT PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,
+  dim INTEGER NOT NULL,
+  vec BLOB NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,

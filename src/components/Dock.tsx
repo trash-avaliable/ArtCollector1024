@@ -302,7 +302,8 @@ export function Dock({
                   size="sm"
                 />
               </div>
-              {selected.clipCat && selected.clipCat !== selected.category && (
+              {/* 方案 A 防孤儿：clip_cat 指向的分类已被用户删掉时，建议 chip 直接不渲染（后端采纳前也校验实时树） */}
+              {selected.clipCat && selected.clipCat !== selected.category && tree.some(([c]) => c === selected.clipCat) && (
                 <div className="clipchip" title={`CLIP 余弦分 ${typeof selected.clipScore === 'number' && selected.clipScore >= 0 ? selected.clipScore.toFixed(3) : '—'}，点采用即改分类`}>
                   <span>AI 建议：{selected.clipCat}</span>
                   <button onClick={() => onCategory(selected.id, selected.clipCat as string)}>采用</button>

@@ -287,6 +287,30 @@ async function startAnimatedBackfill() {
   }
 }
 
+/* ---- 改判学习 kNN：给没有 embedding 的非回收站图逐批补算（仿 startAnimatedBackfill）----
+ * 模型没就绪就静默跳过（绝不触发下载），启动后和每次导入完成后都会再试；
+ * classifyIds 已顺手落库的图不在队列里，这里只兜底历史图和解码失败重试的图。 */
+let embBackfilling = false;
+async function startEmbedBackfill() {
+  if (embBackfilling || !clipEngine.modelsReady()) return;
+  embBackfilling = true;
+  try {
+    await clipEngine.ensureReady();
+    for (;;) {
+      const n = await store.backfillEmbeddings({
+        limit: 16,
+        embed: (buf) => clipEngine.embedImage(buf)
+      });
+      if (!n) break;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  } catch (e) {
+    console.error('embed backfill failed', e);
+  } finally {
+    embBackfilling = false;
+  }
+}
+
 function startClipWatch() {  clipTimer = setInterval(async () => {
     if (clipPaused || !win || win.isDestroyed()) return;
     try {
@@ -381,6 +405,7 @@ app.whenReady().then(async () => {
   startClipWatch();
   startPaletteBackfill();
   startAnimatedBackfill();
+  startEmbedBackfill();
 
   if (process.env.RC_SHOT) {
     const target = process.env.RC_SHOT;
@@ -492,6 +517,7 @@ async function runImport(sender, paths, meta = {}) {
     if (!sender.isDestroyed()) sender.send('import:progress', p);
   }, meta);
   if (!sender.isDestroyed()) sender.send('import:done', { ...res, stats: store.stats() });
+  startEmbedBackfill();   // 新图还没有 embedding，导入完让后台补上（模型没就绪会静默跳过）
   return res;
 }
 
@@ -550,9 +576,11 @@ ipcMain.handle('clip:classify', async (e, ids) => {
   if (clipClassifyRunning) return { error: 'AI 分类正在进行中，请等这批跑完' };
   clipClassifyRunning = true;
   try {
-    // 传当前分类树（config 里用户自定义过的优先），engine 会按树缓存文本 embedding
+    // 传当前分类树（config 里用户自定义过的优先），engine 会按树缓存文本 embedding；
+    // getTree 给采纳校验用实时树——分类跑一半用户删了分类，也不能把建议写进孤儿分类
     const tree = store.getCats() || TREE;
     return await clipEngine.classifyIds(store.tools, list, tree, {
+      getTree: () => store.getCats() || TREE,
       onProgress: (p) => {
         if (!sender.isDestroyed()) sender.send('clip:progress', p);
       }
