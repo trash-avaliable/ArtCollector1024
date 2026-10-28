@@ -2,6 +2,7 @@ import React, { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { createPortal } from 'react-dom';
 import { animLabel, thumbUrl, type Item, type Sort, type Workset } from '../types';
 import { cardAspectRatio } from '../lib/aspect';
+import { boxHitsRect } from '../lib/boxhit';
 import { Select } from './Select';
 
 const SORTS = [
@@ -206,12 +207,11 @@ export function Masonry({
     if (!s) return;
     if (!s.moved) { onBoxSelect([], s.add); return; }  // 空白处点一下 = 取消选择
     if (!b || !ref.current) return;
-    const lx = Math.min(b.x0, b.x1), rx = Math.max(b.x0, b.x1);
-    const ty = Math.min(b.y0, b.y1), by = Math.max(b.y0, b.y1);
     const hit: string[] = [];
     ref.current.querySelectorAll<HTMLElement>('[data-id]').forEach(el => {
       const r = el.getBoundingClientRect();
-      if (r.left < rx && r.right > lx && r.top < by && r.bottom > ty) {
+      // 几何命中抽成纯函数（RTM-S9），box 任意对角顺序都成立
+      if (boxHitsRect(b, { left: r.left, top: r.top, right: r.right, bottom: r.bottom })) {
         const id = el.dataset.id;
         if (id) hit.push(id);
       }

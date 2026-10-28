@@ -56,7 +56,7 @@ test('知识库引用完整性：related 的每个 id 都能解析到条目', ()
   }
 });
 
-test('知识库覆盖面：任务要求的功能域都有条目', () => {
+test('RTM-S23: 知识库覆盖面：任务要求的功能域都有条目', () => {
   const ids = new Set(GUIDE_KB.map(e => e.id));
   const must = [
     // 导入

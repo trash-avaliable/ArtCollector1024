@@ -132,7 +132,7 @@ const usedAtRows = () => {
 
 /* ---------------- 用例 ---------------- */
 
-test('RefCollector 交互回归冒烟（导入 → 占位 → 按下即拖 → 直送PS降级 → 复制）', { skip: SKIP_NO_ELECTRON }, async () => {
+test('RTM-S4: 交互回归冒烟（导入 → 占位 → 按下即拖 native drag 链路 → 直送PS降级 → 复制）', { skip: SKIP_NO_ELECTRON }, async () => {
   // 0) 干净环境
   killApp();
   fs.rmSync(OUT, { recursive: true, force: true });
@@ -271,7 +271,7 @@ const OUT2 = path.join(ROOT, '.rc-layout-out');
 const LIB2 = path.join(OUT2, 'lib');
 const IMG2 = path.join(OUT2, 'img');
 
-test('布局重构冒烟：默认态 / 左栏图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
+test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认态 / 图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
   killApp();
   fs.rmSync(OUT2, { recursive: true, force: true });
   for (const d of [OUT2, LIB2, IMG2]) fs.mkdirSync(d, { recursive: true });

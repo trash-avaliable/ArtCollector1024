@@ -126,7 +126,7 @@ function hit(q, expect, note) {
   return a;
 }
 
-test('问句命中：删除 / 回收站（怎么删图 · 删错了怎么办 · 恢复）', () => {
+test('RTM-S23: 问句命中：删除 / 回收站（怎么删图 · 删错了怎么办 · 恢复）', () => {
   hit('怎么删图', 'trash');
   hit('删除图片', 'trash');
   hit('删错了怎么办', 'trash', '误删找回');

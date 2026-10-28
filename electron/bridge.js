@@ -106,7 +106,7 @@ async function collect(store, body) {
   }
 }
 
-function startBridge({ store, onImported }) {
+function startBridge({ store, onImported, port } = {}) {
   const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
     let u;
@@ -135,11 +135,12 @@ function startBridge({ store, onImported }) {
     return json(res, 404, { error: 'not found' });
   });
 
+  const listenPort = port ?? PORT;  // port=0（测试用临时端口）不被 || 吞掉
   server.on('error', (e) => {
-    console.error('[bridge] 端口 %d 启动失败：%s', PORT, e.message);
+    console.error('[bridge] 端口 %d 启动失败：%s', listenPort, e.message);
   });
-  server.listen(PORT, '127.0.0.1', () => {
-    console.log('[bridge] 扩展接收端口 http://127.0.0.1:' + PORT);
+  server.listen(listenPort, '127.0.0.1', () => {
+    console.log('[bridge] 扩展接收端口 http://127.0.0.1:' + listenPort);
   });
   return server;
 }

@@ -651,53 +651,9 @@ ipcMain.handle('lib:trim-items', async (e, ids) => {
 
 /* ---- 换库目录前扫描：看看新目录里有哪些图片文件夹可以接入 ---- */
 ipcMain.handle('lib:scan-root', async (e, dir) => {
-  const out = { groups: [], loose: 0, total: 0, error: '' };
-  let entries = [];
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-  catch (err) { out.error = '读不了这个目录：' + err.message; return out; }
-  const SKIP = new Set(['files', 'thumbs', 'node_modules', '$RECYCLE.BIN', 'System Volume Information']);
-  const countImages = (d, depth) => {
-    let n = 0;
-    let list = [];
-    try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { return 0; }
-    for (const en of list) {
-      if (en.name.startsWith('.')) continue;
-      const full = path.join(d, en.name);
-      if (en.isDirectory()) { if (depth < 3) n += countImages(full, depth + 1); }
-      else if (IMAGE_EXT.has(path.extname(en.name).toLowerCase())) n++;
-    }
-    return n;
-  };
-  const listFiles = (d) => {
-    const files = [];
-    try {
-      for (const en of fs.readdirSync(d, { withFileTypes: true })) {
-        if (en.isFile() && IMAGE_EXT.has(path.extname(en.name).toLowerCase())) files.push(path.join(d, en.name));
-      }
-    } catch { }
-    return files;
-  };
-  for (const en of entries) {
-    if (!en.isDirectory() || en.name.startsWith('.') || SKIP.has(en.name)) continue;
-    const full = path.join(dir, en.name);
-    const count = countImages(full, 1);
-    if (!count) continue;
-    // 二级子文件夹 → 子分类；直属图片 → 主分类
-    const subs = [];
-    let subEntries = [];
-    try { subEntries = fs.readdirSync(full, { withFileTypes: true }); } catch { }
-    for (const se of subEntries) {
-      if (!se.isDirectory() || se.name.startsWith('.') || SKIP.has(se.name)) continue;
-      const sc = countImages(path.join(full, se.name), 2);
-      if (sc) subs.push({ name: se.name, count: sc, abs: path.join(full, se.name) });
-    }
-    out.groups.push({ name: en.name, count, abs: full, subs, directFiles: listFiles(full).length });
-    out.total += count;
-  }
-  // 根目录散落的图片 → 待分类
-  out.loose = listFiles(dir).length;
-  out.total += out.loose;
-  return out;
+  // 扫描逻辑抽到 electron/scan.js（纯 fs，可脱离 Electron 单测——RTM-S14）
+  const { scanRoot } = require('./scan');
+  return scanRoot(dir);
 });
 
 /* 按扫描结果接入：切换库目录 → 文件夹名 = 分类、二级文件夹 = 子分类，导入选中的部分 */
