@@ -917,6 +917,7 @@ export default function App() {
               onLink={linkToActiveNote}
               onUnlink={unlinkFromActiveNote}
               onOpenAsset={setLightboxId}
+              onBack={() => { setActiveNoteId(null); setNoteAssets([]); }}
             />
           ) : (
             <>

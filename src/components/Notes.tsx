@@ -14,11 +14,12 @@ const fmtClock = (t: number) => {
  * 已关联图 chips 网格可移除、点缩略图开灯箱。
  */
 export function NoteView({
-  notes, activeId, assets, onPick, onCreate, onPatch, onDelete, onPin, onLink, onUnlink, onOpenAsset
+  notes, activeId, assets, onPick, onCreate, onPatch, onDelete, onPin, onLink, onUnlink, onOpenAsset, onBack
 }: {
   notes: Note[];
   activeId: string | null;
   assets: Item[];
+  onBack: () => void;
   onPick: (id: string) => void;
   onCreate: (title: string) => void;
   onPatch: (id: string, patch: { title?: string; content?: string }) => void;
@@ -110,6 +111,7 @@ export function NoteView({
       {/* 左列：笔记列表 */}
       <aside className="nv-side">
         <div className="nv-sidehead">
+          <button className="nv-back" title="返回素材库（Esc 也可以）" onClick={onBack}>←</button>
           <span className="nv-title-lbl">NOTES / 笔记</span>
           <button className="nv-add" title="新建笔记" onClick={() => setAdding(true)}>＋</button>
         </div>

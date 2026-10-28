@@ -243,7 +243,7 @@ export function Dock({
         <div className="dbody">
         {selected ? (
           <>
-            <Pv item={selected} />
+            {/* 缩略图预览已移除：检查器直接看信息 */}
             {editing ? (
               <div className="rename">
                 <input

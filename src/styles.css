@@ -1220,6 +1220,8 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 .guide-fab.on svg { stroke: var(--ink); }
 .win[data-dock="idle"] .guide-fab { right: 72px; }
 .win[data-dockhide="1"] .guide-fab { right: 16px; }
+/* 抽屉打开时隐藏 FAB，避免和发送键重叠 */
+.win .guide-fab.on { display: none; }
 
 /* ================= 网页采集面板：对话式补全 + 参数确认 + 进度 ================= */
 .crawlpanel {
