@@ -1,6 +1,6 @@
 {
   "name": "refcollector",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "RefCollector - 画师参考图收集器",
   "main": "electron/main.js",
   "author": "RefCollector",
@@ -46,7 +46,7 @@
       "package.json"
     ],
     "win": {
-      "icon": "assets/icon.png",
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]

@@ -1011,6 +1011,11 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 .wsops { margin-top: 8px; }
 
 /* ---------- 全页设置：左导航 + 右内容 ---------- */
+/* 覆盖层必须显式 no-drag：.rail/.titlebar 的拖拽遮罩按像素作用于窗口级，
+   不被上层元素遮挡——否则设置页顶部 44px 内的返回按钮会被拖窗口吞掉点击 */
+.setpage, .modal-veil, .lightbox, .dropveil, .cmdbar, .crawlpanel, .guideveil, .guidedrawer {
+  -webkit-app-region: no-drag;
+}
 .setpage {
   position: absolute; inset: 0; z-index: 78; display: flex;
   background: var(--bg); animation: fadeIn 140ms var(--ease);
