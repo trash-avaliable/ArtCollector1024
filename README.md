@@ -6,7 +6,7 @@
 
 **Windows 桌面应用**。把网页上看到的、剪贴板里复制的、硬盘里已有的参考图，统一收进一个本地库：AI 视觉自动分类、拼音/取色/相似图搜索、画板与笔记整理、一键直送 Photoshop 画布。**全部数据本地存储，图片不出你的机器。**
 
-`Electron 45` `React 18` `TypeScript` `SQLite (node:sqlite)` `ONNX CLIP ViT-B/32` ![tests](https://img.shields.io/badge/tests-197%20pass-brightgreen)
+`Electron 45` `React 18` `TypeScript` `SQLite (node:sqlite)` `ONNX CLIP ViT-B/32` ![tests](https://img.shields.io/badge/tests-218%20pass-brightgreen)
 
 ---
 
@@ -29,9 +29,14 @@
 - GIF / 动态 WebP / APNG 真播放（角标标识）；全局热键可自定义；Ctrl+K 命令面板
 - 右下角**离线问询助手**：怎么用功能直接问（40 条知识库检索，LLM API 接入位预留）
 
+**插件系统**
+- 应用内插件（Node vm 沙盒 + 声明式权限：未声明的 API 在沙盒里不存在；三层防逃逸加固）
+- 插件可注册命令面板命令（Ctrl+K 可见可执行）；设置页管理启停；内置「随机一图」「标签普查」两个示例
+- 开发文档：[`docs/PLUGINS.md`](docs/PLUGINS.md)（manifest / 权限模型 / 沙盒边界）
+
 **工程质量**
-- 197 个 node:test 用例全绿；空白界面自动恢复；IPC/渲染进程/崩溃统一错误日志
-- 需求跟踪矩阵（`docs/RTM.md`，27 条需求）+ 多代理开发工作流沉淀（`docs/WORKFLOW.md`）
+- 218 个 node:test 用例全绿；空白界面自动恢复；IPC/渲染进程/崩溃统一错误日志
+- 需求跟踪矩阵（`docs/RTM.md`，28 条需求 ✅26/🔴2）+ 多代理开发工作流沉淀（`docs/WORKFLOW.md`）
 
 ---
 
@@ -105,7 +110,7 @@ RefCollector/
 ## 🧪 开发
 
 ```bash
-npm test           # 197 个 node:test 用例
+npm test           # 218 个 node:test 用例
 npm run rtm        # 重新生成需求跟踪矩阵 docs/RTM.md
 npm run bench:clip # CLIP 分类基准（门禁 ≥90%，实测 96%）
 npm run dist       # 打包 NSIS 安装包（国内加 ELECTRON_MIRROR 镜像变量）
@@ -115,7 +120,7 @@ npm run dist       # 打包 NSIS 安装包（国内加 ELECTRON_MIRROR 镜像变
 
 ## 🗺 路线图
 
-见 [`docs/RTM.md`](docs/RTM.md)：27 条需求中 25 条已交付，剩余——**CLIP 语义搜索**（以文搜图，embedding 基建已就位）、**云同步/多设备**（需先解决 SQLite 多端写冲突，倾向只同步 `files/` 的内容寻址方案）、**移动端只读页**。
+见 [`docs/RTM.md`](docs/RTM.md)：28 条需求中 26 条已交付，剩余——**CLIP 语义搜索**（以文搜图，embedding 基建已就位）、**云同步/多设备**（需先解决 SQLite 多端写冲突，倾向只同步 `files/` 的内容寻址方案）、**移动端只读页**。
 
 ## 📄 License
 
