@@ -7,7 +7,7 @@ import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
 import { CrawlerPanel } from './components/Crawler';
 import { NoteView } from './components/Notes';
 import { Settings } from './components/Settings';
-import { fullPrefs, matchesAppKey, type FullPrefs } from './lib/settings-core';
+import { fullPrefs, matchesAppKey, type FullPrefs, type ThemeId } from './lib/settings-core';
 import { CommandPalette } from './components/CommandPalette';
 import { GuideDrawer, GuideFab } from './components/Guide';
 import {
@@ -702,6 +702,18 @@ export default function App() {
     setPrefsFull(fullPrefs(saved));
   };
 
+  /* ---------- 主题切换（设置 → 外观 / 命令面板）：写 prefs.ui.theme，根元素 data-theme 即时生效 ---------- */
+  const theme: ThemeId = prefsFull.ui.theme;
+  const toggleTheme = () => {
+    const next: ThemeId = theme === 'ide-dark' ? 'endfield-light' : 'ide-dark';
+    void onSetPrefs({ ui: { ...prefsFull.ui, theme: next } });
+  };
+
+  // 根元素之外（body 背景 / 原生滚动条 / 原生控件）也要吃到主题变量
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   const pickRoot = async () => {
     const p = await window.api.lib.pickRoot();
     if (p) { setSettings(false); setAskRoot(p); }
@@ -854,7 +866,8 @@ export default function App() {
     'act.settings': () => setSettings(true),
     'layout.rail-mini': toggleRailMini,
     'layout.dock-hidden': toggleDockHidden,
-    'layout.guide': () => setGuideOpen(true)
+    'layout.guide': () => setGuideOpen(true),
+    'layout.theme': toggleTheme
   };
   /* ---------- 插件命令（RTM-S28）：主进程跑插件 run()，完成后刷新库（import 类命令会改库存） ---------- */
   const runPluginCommand = async (pluginId: string, cmdId: string) => {
@@ -899,6 +912,7 @@ export default function App() {
   return (
     <div
       className="win"
+      data-theme={theme}
       data-ark-theme="endfield"
       data-ark-depth="complex"
       data-density={prefsFull.ui.density}

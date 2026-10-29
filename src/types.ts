@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import type { ThemeId } from './lib/settings-core';
 
 export type Item = {
   id: string;
@@ -163,7 +164,7 @@ export type Prefs = {
   general?: { closeToTray?: boolean; clipWatch?: boolean; autoTrim?: boolean; launchAtLogin?: boolean };
   clip?: { enabled?: boolean; threshold?: number };
   crawler?: { maxPerTask?: number; sameDomainOnly?: boolean; domainDelaySec?: number; whitelist?: string; confirmed?: boolean };
-  ui?: { density?: 'cozy' | 'compact'; reducedMotion?: boolean };
+  ui?: { density?: 'cozy' | 'compact'; reducedMotion?: boolean; theme?: ThemeId };
   /** 插件启停状态（id → boolean，缺省启用；宿主经 prefs.plugins.enabled 读写） */
   plugins?: { enabled?: Record<string, boolean> };
 };

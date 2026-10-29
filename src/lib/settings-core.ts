@@ -128,6 +128,19 @@ function defaultMatch(norm: string, e: KeyboardEvent): boolean {
 
 /* ---------------- prefs 默认值与深合并 ---------------- */
 
+/* ---------- 主题（外观设置） ---------- */
+
+/** 合法主题 id：styles.css 里 :root（默认浅色）与 [data-theme="ide-dark"] 两套变量组 */
+export const THEME_IDS = ['endfield-light', 'ide-dark'] as const;
+export type ThemeId = (typeof THEME_IDS)[number];
+
+/** 任意来历的 prefs.ui.theme 洗成合法主题；非法/缺省回落浅色（prefs 文件被手改坏也不崩） */
+export function normalizeTheme(raw: unknown): ThemeId {
+  return typeof raw === 'string' && (THEME_IDS as readonly string[]).includes(raw)
+    ? raw as ThemeId
+    : 'endfield-light';
+}
+
 export const PREF_DEFAULTS = {
   hotkeys: {
     wake: 'Alt+Space',
@@ -157,7 +170,8 @@ export const PREF_DEFAULTS = {
   },
   ui: {
     density: 'cozy',
-    reducedMotion: false
+    reducedMotion: false,
+    theme: 'endfield-light'
   }
 } as const;
 
@@ -181,7 +195,10 @@ export function mergePrefs<T extends Plain>(defaults: T, saved: Plain | undefine
 }
 
 export function fullPrefs(saved: Plain | undefined | null) {
-  return mergePrefs(PREF_DEFAULTS as unknown as Plain, saved) as typeof PREF_DEFAULTS;
+  const merged = mergePrefs(PREF_DEFAULTS as unknown as Plain, saved);
+  // ui.theme 单独过白名单：mergePrefs 只做浅合并，垃圾值会原样穿透
+  const ui = { ...(merged.ui as Plain), theme: normalizeTheme((merged.ui as Plain).theme) };
+  return { ...merged, ui } as typeof PREF_DEFAULTS;
 }
 
 export type FullPrefs = typeof PREF_DEFAULTS;
