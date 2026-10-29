@@ -133,7 +133,6 @@ commands.register({ id: 'act.settings', title: '库设置', group: 'action', key
 commands.register({ id: 'layout.rail-mini', title: '切换：左栏图标轨', group: 'layout', keywords: ['rail', 'mini', 'zuoLan', 'zld'], order: 200 });
 commands.register({ id: 'layout.dock-hidden', title: '切换：收起右栏检查器', group: 'layout', keywords: ['dock', 'shouqi', 'sq'], order: 201 });
 commands.register({ id: 'layout.guide', title: '打开问询助手', group: 'layout', keywords: ['ask', 'guide', 'wenzhu', 'wz'], order: 202 });
-commands.register({ id: 'layout.theme', title: '切换主题：浅色 / 深色', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'dark', 'light', '深色', '浅色', '暗色', '外观'], order: 203 });
 
 export const COMMAND_GROUP_LABEL: Record<CommandGroup, string> = {
   view: '视图', category: '分类', board: '画板', action: '动作', layout: '布局', plugin: '插件'

@@ -212,24 +212,7 @@ export function Settings({
           </div>
           <Toggle label="减少动效（关闭入场动画与过渡）" on={prefs.ui.reducedMotion}
             onChange={v => set('ui', { reducedMotion: v })} />
-          <div className="setrow col">
-            <span>主题（即时生效，存 prefs.ui.theme）</span>
-            <div className="themecards" role="radiogroup" aria-label="主题">
-              {([
-                ['endfield-light', 'Endfield 浅色', '素色纸面 · 墨黑铭牌 · 信号黄点缀，工业直角（默认）'],
-                ['ide-dark', 'IDE 深色', '深底亮字 · 明度分层 · 细边框，参考 AI IDE']
-              ] as const).map(([id, nm, dsc]) => (
-                <button key={id} role="radio" aria-checked={prefs.ui.theme === id}
-                  className={'themecard' + (prefs.ui.theme === id ? ' on' : '')}
-                  onClick={() => set('ui', { theme: id })}>
-                  <span className={'tp ' + (id === 'ide-dark' ? 'dp' : 'lp')} aria-hidden="true"><i /><i /><i /></span>
-                  <span className="tnm">{nm}</span>
-                  <span className="tdsc">{dsc}</span>
-                  {prefs.ui.theme === id && <span className="tuse">使用中</span>}
-                </button>
-              ))}
-            </div>
-          </div>
+          <div className="setrow"><span>主题</span><b className="dimv">Endfield 浅色 · 组件清透（当前契约锁定）</b></div>
         </>
       );
       case 'crawler': return (
