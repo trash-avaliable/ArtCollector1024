@@ -1,342 +1,501 @@
 {
-  "meta": {
-    "name": "RefCollector RTM 需求总目 v1",
-    "updated": "2026-10-27",
-    "seededBy": "agent（模型）提供需求种子与验收标准；实现/测试命中由 scripts/rtm.mjs 扫描推导",
-    "baselineMeaning": "baseline 是 agent 的种子认知（done=已交付 / partial=部分交付 / todo=未做），扫描推导结果可能推翻它——不一致清单见 docs/RTM.md",
-    "keywordMeaning": "keywords 同时用于（a）electron/ src/ 实现扫描、（b）tests/*.test.mjs 测试名匹配；re: 前缀表示正则。已落地特征用真实代码签名（函数/IPC/表名），未落地特征用前瞻签名（落地后 RTM 自动翻转）"
+ "meta": {
+  "name": "RefCollector RTM 需求总目 v1",
+  "updated": "2026-10-27",
+  "seededBy": "agent（模型）提供需求种子与验收标准；实现/测试命中由 scripts/rtm.mjs 扫描推导",
+  "baselineMeaning": "baseline 是 agent 的种子认知（done=已交付 / partial=部分交付 / todo=未做），扫描推导结果可能推翻它——不一致清单见 docs/RTM.md",
+  "keywordMeaning": "keywords 同时用于（a）electron/ src/ 实现扫描、（b）tests/*.test.mjs 测试名匹配；re: 前缀表示正则。已落地特征用真实代码签名（函数/IPC/表名），未落地特征用前瞻签名（落地后 RTM 自动翻转）"
+ },
+ "requirements": [
+  {
+   "id": "RTM-S1",
+   "title": "无边框窗口 / 自绘标题栏 / 8 向缩放 / 状态记忆",
+   "source": "主干 v0.1（MVP）",
+   "baseline": "done",
+   "keywords": [
+    "frame: false",
+    "app-region",
+    "resizeBy",
+    "window-state.json",
+    "标题栏"
+   ],
+   "acceptance": [
+    "窗口无系统边框（frame: false），标题栏自绘、可拖拽，含最小化/最大化/关闭",
+    "8 个方向（n/s/e/w/nw/ne/sw/se）均可拖边缩放，且有最小尺寸限制",
+    "关闭后重启，窗口大小、位置、最大化状态从 window-state.json 恢复（并压回当前工作区）"
+   ]
   },
-  "requirements": [
-    {
-      "id": "RTM-S1",
-      "title": "无边框窗口 / 自绘标题栏 / 8 向缩放 / 状态记忆",
-      "source": "主干 v0.1（MVP）",
-      "baseline": "done",
-      "keywords": ["frame: false", "app-region", "resizeBy", "window-state.json", "标题栏"],
-      "acceptance": [
-        "窗口无系统边框（frame: false），标题栏自绘、可拖拽，含最小化/最大化/关闭",
-        "8 个方向（n/s/e/w/nw/ne/sw/se）均可拖边缩放，且有最小尺寸限制",
-        "关闭后重启，窗口大小、位置、最大化状态从 window-state.json 恢复（并压回当前工作区）"
-      ]
-    },
-    {
-      "id": "RTM-S2",
-      "title": "拖入粘贴导入 + 自动分类（规则层）",
-      "source": "主干 v0.1（MVP）",
-      "baseline": "done",
-      "keywords": ["自动分类", "classifyVisual", "拖入", "粘贴", "导入"],
-      "acceptance": [
-        "拖拽图片文件到窗口任意位置可导入；Ctrl+V 粘贴剪贴板图片可导入（可选剪贴板监听弹卡片）",
-        "导入时规则层按 文件名/尺寸/色板 等自动落分类（classify + classifyVisual），规则不中落「待分类」",
-        "导入原图入库存档、生成缩略图，UI 给出可感知反馈（toast/列表刷新）"
-      ]
-    },
-    {
-      "id": "RTM-S3",
-      "title": "交错瀑布流 + 拼音/首字母/中文子串搜索",
-      "source": "主干 v0.1（MVP）",
-      "baseline": "done",
-      "keywords": ["拼音", "pinyin", "瀑布流", "Masonry", "首字母"],
-      "acceptance": [
-        "卡片按列高交错排布（masonry），切分类/搜索时 100ms 内先出占位框",
-        "中文关键词支持三种命中：全拼、拼音首字母、中文子串",
-        "搜索与其他筛选（分类/画板/相似）可叠加，空态有提示"
-      ]
-    },
-    {
-      "id": "RTM-S4",
-      "title": "拖出到 PS/SAI（native drag）",
-      "source": "主干 v0.1（MVP）",
-      "baseline": "done",
-      "keywords": ["startDrag", "onDragOut", "拖出"],
-      "acceptance": [
-        "卡片可拖出窗口到 Photoshop/SAI/资源管理器，走 Electron 原生 file drag（sender.startDrag），不是剪贴板模拟",
-        "拖出 icon 用非空缩略图（Windows 上空图会失败，需兜底）",
-        "拖出失败有日志与可见提示"
-      ]
-    },
-    {
-      "id": "RTM-S5",
-      "title": "托盘常驻 + 全局热键",
-      "source": "主干 v0.1（MVP）",
-      "baseline": "done",
-      "keywords": ["托盘", "Tray", "globalShortcut", "热键", "accelerator"],
-      "acceptance": [
-        "关闭窗口默认收进托盘常驻（closeToTray），托盘菜单可唤起/退出，双击图标唤起",
-        "全局热键：唤起主窗口、存剪贴板图、收回穿透置顶窗；读 prefs，冲突键位自动跳过",
-        "热键可在设置页自定义（accelerator 规范化 + 冲突检测）"
-      ]
-    },
-    {
-      "id": "RTM-S6",
-      "title": "内容寻址去重 + 缩略图",
-      "source": "主干 v0.1（MVP）",
-      "baseline": "done",
-      "keywords": ["sha256", "去重", "makeThumb", "缩略图"],
-      "acceptance": [
-        "同一内容文件重复导入只入库一份（sha256 内容寻址）",
-        "缩略图落盘（makeThumb）并在卡片/检查器复用，原图不动",
-        "裁剪后缩略图按裁剪框重生成"
-      ]
-    },
-    {
-      "id": "RTM-S7",
-      "title": "回收站（软删/恢复/彻底删）",
-      "source": "主干 v0.2（P1 批次）",
-      "baseline": "done",
-      "keywords": ["回收站", "deleted_at", "purge", "恢复"],
-      "acceptance": [
-        "删除先软删（deleted_at 打标），原图与缩略图留盘，除回收站视图外不可见",
-        "可单张/批量恢复；计数与体积在回收站视图可见",
-        "彻底删除连数据库记录、原图、缩略图一起删且不可恢复，需二次确认"
-      ]
-    },
-    {
-      "id": "RTM-S8",
-      "title": "子分类",
-      "source": "主干 v0.2（P1 批次）",
-      "baseline": "done",
-      "keywords": ["子分类", "subcategory"],
-      "acceptance": [
-        "分类支持二级子分类（category / subcategory），建库索引可查",
-        "卡片可改子分类，支持批量（lib:set-category-many）；扩展投递可带子分类",
-        "左栏与检查器按 分类/子分类 级联展示"
-      ]
-    },
-    {
-      "id": "RTM-S9",
-      "title": "橡皮筋框选",
-      "source": "主干 v0.2（P1 批次）",
-      "baseline": "done",
-      "keywords": ["橡皮筋", "框选", "rubber", "boxSelect"],
-      "acceptance": [
-        "在瀑布流空白处按下拖动出现橡皮筋框（fixed 挂 body、无过渡跟手）",
-        "松手后框内卡片批量选中，可与 Ctrl/Shift 加选共存",
-        "滚动/缩放布局后框选坐标仍正确"
-      ]
-    },
-    {
-      "id": "RTM-S10",
-      "title": "相似图（主色 Lab + 宽高比加权；种子原写 dHash+主色）",
-      "source": "主干 v0.2（P1 批次）",
-      "baseline": "done",
-      "keywords": ["相似", "similar(", "deltaE", "paletteFromBGRA"],
-      "acceptance": [
-        "卡片可「找相似」，返回按相似度排序的列表并带相似度角标/chip",
-        "相似度加权：主色 Lab 距离 55% + 宽高比 25% + 同分类 10% + 同标签 15%，自适应截断避免全库命中",
-        "（种子验收原案：dHash 感知哈希 + 主色）——见备注"
-      ],
-      "note": "实测实现为主色 Lab 距离+宽高比+分类+标签加权（electron/tools.js similar()），未发现 dHash 感知哈希——要么补 dHash，要么修订需求描述，人工裁定"
-    },
-    {
-      "id": "RTM-S11",
-      "title": "置顶参考窗（透明度 / 鼠标穿透）",
-      "source": "主干 v0.2（P1 批次）",
-      "baseline": "done",
-      "keywords": ["置顶", "ignoreMouse", "alwaysOnTop", "setOpacity", "pinIgnore"],
-      "acceptance": [
-        "检查器可开置顶参考小窗（alwaysOnTop，screen-saver 层级），加载 pin.html 极简入口",
-        "透明度可调（菜单/IPC setOpacity），鼠标可穿透（setIgnoreMouseEvents forward）",
-        "穿透后点不到自己，用全局热键（Ctrl+Shift+P）收回；可正常关闭"
-      ]
-    },
-    {
-      "id": "RTM-S12",
-      "title": "白边裁剪（自动 + 批量 + 灯箱裁剪显示）",
-      "source": "主干 v0.2（P1 批次）",
-      "baseline": "done",
-      "keywords": ["白边", "裁剪", "autoTrim", "crop_l"],
-      "acceptance": [
-        "导入可自动检测白边并存裁剪框（crop_l/t/r/b，-1=未检测），schema 迁移 v3→v4",
-        "支持对已有图手动/批量裁白边：检测→存裁剪框→重生成缩略图→重提色板",
-        "卡片与灯箱按裁剪后内容尺寸显示（aspect.ts contentSize/framePlaceholderHeight），原文件不动可还原"
-      ]
-    },
-    {
-      "id": "RTM-S13",
-      "title": "浏览器扩展桥接（127.0.0.1 + token）",
-      "source": "主干 v0.3",
-      "baseline": "done",
-      "keywords": ["127.0.0.1", "bridgeToken", "桥接"],
-      "acceptance": [
-        "本地 HTTP 桥只监听 127.0.0.1（外部机器连不上），扩展 POST 图片 URL/数据入库",
-        "token 校验（bridgeToken，设置里可见；留空=不校验），token 不匹配返回 401",
-        "content-type 白名单与扩展名映射，来源 URL 归档"
-      ]
-    },
-    {
-      "id": "RTM-S14",
-      "title": "扫描接入（换目录 + 文件夹=分类）",
-      "source": "主干 v0.3",
-      "baseline": "done",
-      "keywords": ["扫描接入", "attach-scan", "attachScan"],
-      "acceptance": [
-        "支持更换/迁移库目录（复制并切换）",
-        "「扫描并接入」扫描新目录：一级文件夹=分类、二级文件夹=子分类，用户勾选部分导入",
-        "已在库里的图（内容寻址命中）不重复导入"
-      ]
-    },
-    {
-      "id": "RTM-S15",
-      "title": "画板 / 工作集（多对多 + 拖拽 + 批量）",
-      "source": "主干 v0.3",
-      "baseline": "done",
-      "keywords": ["画板", "工作集", "workset_items"],
-      "acceptance": [
-        "画板与图片多对多（两张表），一张图可进多个画板，删画板不动图片",
-        "瀑布流卡片可拖到左栏画板加入；支持批量加入/移出",
-        "画板视图只显示未进回收站的成员，带成员计数"
-      ]
-    },
-    {
-      "id": "RTM-S16",
-      "title": "动图播放（GIF/WebP/APNG 检测 + 角标 + 预览播放）",
-      "source": "主干 v0.3",
-      "baseline": "done",
-      "keywords": ["动图", "animated", "apng", "detectAnimated"],
-      "acceptance": [
-        "GIF/WebP/APNG 在导入时用纯字节解析检测动图标记（animated 列，schema v4→v5），不依赖解码器",
-        "存量库启动时 backfillAnimated 补齐标记",
-        "卡片有动图角标；检查器预览直接播原始文件而非静态缩略图"
-      ]
-    },
-    {
-      "id": "RTM-S17",
-      "title": "直送 PS 当前画布（COM + 剪贴板降级）",
-      "source": "主干 v0.3",
-      "baseline": "done",
-      "keywords": ["sendToPs", "DoJavaScript", "Photoshop", "直送"],
-      "acceptance": [
-        "「直送 PS」把图作为新图层贴进 Photoshop 当前活动画布：PowerShell 拉起 COM（Photoshop.Application + DoJavaScript）",
-        "中文/空格/反斜杠/单引号路径正确转义（JSX 与 PowerShell 双层），UTF-16LE base64 编码传脚本不丢字",
-        "超时/COM 不可用自动降级为复制到剪贴板，toast 文案区分成功/降级/失败并带原因（decideSendToPs 纯函数可单测）"
-      ]
-    },
-    {
-      "id": "RTM-S18",
-      "title": "全页设置（分类导航 / 搜索 / 快捷键自定义 / 合规参数）",
-      "source": "主干 v0.4",
-      "baseline": "done",
-      "keywords": ["prefs", "快捷键", "setrow", "设置页"],
-      "acceptance": [
-        "设置页分区完整（外观/热键/AI/库与存储/采集与合规/日志与诊断），带分区导航与设置项搜索",
-        "全局热键自定义：键盘事件转 accelerator、中文展示、冲突检测（settings-core 与主进程 JS 版行为一致）",
-        "prefs 读写走 mergePrefs（用户值覆盖默认、未触字段保默认、容忍脏数据）"
-      ]
-    },
-    {
-      "id": "RTM-S19",
-      "title": "全局错误日志（IPC / 渲染进程 / 崩溃）",
-      "source": "主干 v0.4",
-      "baseline": "done",
-      "keywords": ["logger", "uncaughtException", "崩溃", "日志"],
-      "acceptance": [
-        "按天分文件日志（userData/logs/rc-YYYY-MM-DD.log），含时间与级别",
-        "主进程 uncaughtException、所有 IPC handler 抛错、渲染进程异常与崩溃均落日志",
-        "设置页「日志与诊断」可一键打开日志目录"
-      ]
-    },
-    {
-      "id": "RTM-S20",
-      "title": "CLIP 零样本分类（基准 ≥90% 门禁）",
-      "source": "feat/clip-classify（合并 421b06d）",
-      "baseline": "done",
-      "keywords": ["零样本", "onnx", "ClipEngine", "clipClassify", "阈值", "归一", "Xenova", "BGRA"],
-      "acceptance": [
-        "CLIP（Xenova/clip-vit-base-patch32 量化 ONNX）零样本分类：预处理(BGRA)→text/vision embedding→余弦 top-1",
-        "采纳门禁：≥0.22 阈值才写 clip_cat/clip_score（schema v7），只作建议不直接改分类，用户手动采用",
-        "基准门禁：scripts/clip-benchmark.mjs 合成基准总体准确率 ≥90% 才允许合并（npm run bench:clip）"
-      ]
-    },
-    {
-      "id": "RTM-S21",
-      "title": "布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架）",
-      "source": "feat/relayout（合并 fc54d3d）",
-      "baseline": "done",
-      "keywords": ["railSections", "dockTabs", "CommandPalette", "命令面板", "问询"],
-      "acceptance": [
-        "左栏分区走 Section 注册制（layout-registry：注册/排序/id 查询/折叠状态持久化），图标轨 + 可展开分区",
-        "检查器 Dock Tab 化（sanitizeDockTab 守卫未知 id，可收起到脊柱态）",
-        "Ctrl+K 全局命令面板：静态注册 + 动态命令（分类/画板），关键词多词 AND 过滤；问询抽屉留骨架位"
-      ]
-    },
-    {
-      "id": "RTM-S22",
-      "title": "网页采集 agent（NL 命令 + 反问 + robots 合规护栏）",
-      "source": "路线图（未排期，agent 种子 2026-10-27）",
-      "baseline": "todo",
-      "keywords": ["crawler", "robots", "网页采集"],
-      "acceptance": [
-        "自然语言描述采集意图 → agent 反问澄清（站点/数量/尺度）→ 生成采集计划确认后执行",
-        "不可关闭合规护栏：robots.txt、诚实 UA、不带登录凭据、单域名限速、连续 403 自动停止、来源 URL 归档",
-        "采集历史入「采集」分区（走 S21 的 Section/Dock Tab/命令面板注册位）"
-      ],
-      "note": "设置页「采集与合规」段（crawler 参数 + robots 护栏文案）已先落地；agent 本体（NL 命令/反问/抓取调度）未实现"
-    },
-    {
-      "id": "RTM-S23",
-      "title": "问询引导 agent（检索式问答）",
-      "source": "路线图（未排期，agent 种子 2026-10-27）",
-      "baseline": "todo",
-      "keywords": ["检索式", "retrievalQa", "askAgent"],
-      "acceptance": [
-        "问询抽屉支持对当前库检索式问答（如「最近收集的赛博朋克角色图」），答案附图片引用可点开",
-        "问答走库内检索（分类/标签/拼音/相似），不凭空生成不存在的图",
-        "入口复用 S21 问询抽屉骨架（FAB + 抽屉），不走命令面板"
-      ],
-      "note": "当前仅 App.tsx 抽屉骨架留位（属 S21 范畴），检索式问答本体未实现"
-    },
-    {
-      "id": "RTM-S24",
-      "title": "笔记系统（笔记 + 关联图片 + 拼音搜索）",
-      "source": "路线图（未排期，agent 种子 2026-10-27）",
-      "baseline": "todo",
-      "keywords": ["noteId", "note_id", "笔记正文"],
-      "acceptance": [
-        "可创建/编辑/删除笔记，笔记可关联多张库内图片（多对多）",
-        "笔记标题与正文支持 拼音/首字母/中文子串 搜索",
-        "笔记进左栏分区与 Dock Tab（layout-registry 注册位已留：id 'notes'）"
-      ],
-      "note": "前瞻关键词（noteId/note_id/笔记正文）：实现落地后 RTM 自动翻转为 🟡/✅"
-    },
-    {
-      "id": "RTM-S25",
-      "title": "多标签工作集（tags 数据层已有，无界面）",
-      "source": "路线图（未排期，agent 种子 2026-10-27）",
-      "baseline": "todo",
-      "keywords": ["asset_tags", "setTags", "多标签"],
-      "acceptance": [
-        "卡片可打多标签（tags / asset_tags 多对多），检查器可编辑（lib:set-tags IPC）",
-        "按标签过滤视图，可与分类/搜索叠加",
-        "标签选择器 UI 与标签管理入口（当前缺的就是这层界面）"
-      ],
-      "note": "数据层已有 tags/asset_tags 表与 setTags/store 通路，缺标签编辑与按标签过滤的界面"
-    },
-    {
-      "id": "RTM-S26",
-      "title": "CLIP 语义搜索（以文搜图）",
-      "source": "路线图（未排期，agent 种子 2026-10-27）",
-      "baseline": "todo",
-      "keywords": ["semanticSearch", "语义搜索", "textEmbed"],
-      "acceptance": [
-        "查询文本过 CLIP text embedding，与库内图片 embedding 余弦相似排序返回",
-        "图片 embedding 落库缓存（增量计算），搜索可与其他筛选叠加",
-        "与现有主色相似（RTM-S10）互补：语义搜索管「像什么意思」，主色管「长得像」"
-      ],
-      "note": "现状只有构图/主色相似；CLIP embedding 目前只用于分类建议（S20），未做以文搜图。前瞻关键词落地后自动翻转"
-    },
-    {
-      "id": "RTM-S27",
-      "title": "云同步",
-      "source": "路线图（未排期，agent 种子 2026-10-27）",
-      "baseline": "todo",
-      "keywords": ["cloudSync", "云同步", "webdav"],
-      "acceptance": [
-        "库数据与原图可选云同步（增量上传/下载），支持 WebDAV 等通用协议",
-        "冲突可解（以内容寻址为合并单位），同步状态可见可暂停",
-        "凭据只存本机，日志不落敏感信息"
-      ],
-      "note": "前瞻关键词（cloudSync/webdav）：实现落地后 RTM 自动翻转"
-    }
-  ]
+  {
+   "id": "RTM-S2",
+   "title": "拖入粘贴导入 + 自动分类（规则层）",
+   "source": "主干 v0.1（MVP）",
+   "baseline": "done",
+   "keywords": [
+    "自动分类",
+    "classifyVisual",
+    "拖入",
+    "粘贴",
+    "导入"
+   ],
+   "acceptance": [
+    "拖拽图片文件到窗口任意位置可导入；Ctrl+V 粘贴剪贴板图片可导入（可选剪贴板监听弹卡片）",
+    "导入时规则层按 文件名/尺寸/色板 等自动落分类（classify + classifyVisual），规则不中落「待分类」",
+    "导入原图入库存档、生成缩略图，UI 给出可感知反馈（toast/列表刷新）"
+   ]
+  },
+  {
+   "id": "RTM-S3",
+   "title": "交错瀑布流 + 拼音/首字母/中文子串搜索",
+   "source": "主干 v0.1（MVP）",
+   "baseline": "done",
+   "keywords": [
+    "拼音",
+    "pinyin",
+    "瀑布流",
+    "Masonry",
+    "首字母"
+   ],
+   "acceptance": [
+    "卡片按列高交错排布（masonry），切分类/搜索时 100ms 内先出占位框",
+    "中文关键词支持三种命中：全拼、拼音首字母、中文子串",
+    "搜索与其他筛选（分类/画板/相似）可叠加，空态有提示"
+   ]
+  },
+  {
+   "id": "RTM-S4",
+   "title": "拖出到 PS/SAI（native drag）",
+   "source": "主干 v0.1（MVP）",
+   "baseline": "done",
+   "keywords": [
+    "startDrag",
+    "onDragOut",
+    "拖出"
+   ],
+   "acceptance": [
+    "卡片可拖出窗口到 Photoshop/SAI/资源管理器，走 Electron 原生 file drag（sender.startDrag），不是剪贴板模拟",
+    "拖出 icon 用非空缩略图（Windows 上空图会失败，需兜底）",
+    "拖出失败有日志与可见提示"
+   ]
+  },
+  {
+   "id": "RTM-S5",
+   "title": "托盘常驻 + 全局热键",
+   "source": "主干 v0.1（MVP）",
+   "baseline": "done",
+   "keywords": [
+    "托盘",
+    "Tray",
+    "globalShortcut",
+    "热键",
+    "accelerator"
+   ],
+   "acceptance": [
+    "关闭窗口默认收进托盘常驻（closeToTray），托盘菜单可唤起/退出，双击图标唤起",
+    "全局热键：唤起主窗口、存剪贴板图、收回穿透置顶窗；读 prefs，冲突键位自动跳过",
+    "热键可在设置页自定义（accelerator 规范化 + 冲突检测）"
+   ]
+  },
+  {
+   "id": "RTM-S6",
+   "title": "内容寻址去重 + 缩略图",
+   "source": "主干 v0.1（MVP）",
+   "baseline": "done",
+   "keywords": [
+    "sha256",
+    "去重",
+    "makeThumb",
+    "缩略图"
+   ],
+   "acceptance": [
+    "同一内容文件重复导入只入库一份（sha256 内容寻址）",
+    "缩略图落盘（makeThumb）并在卡片/检查器复用，原图不动",
+    "裁剪后缩略图按裁剪框重生成"
+   ]
+  },
+  {
+   "id": "RTM-S7",
+   "title": "回收站（软删/恢复/彻底删）",
+   "source": "主干 v0.2（P1 批次）",
+   "baseline": "done",
+   "keywords": [
+    "回收站",
+    "deleted_at",
+    "purge",
+    "恢复"
+   ],
+   "acceptance": [
+    "删除先软删（deleted_at 打标），原图与缩略图留盘，除回收站视图外不可见",
+    "可单张/批量恢复；计数与体积在回收站视图可见",
+    "彻底删除连数据库记录、原图、缩略图一起删且不可恢复，需二次确认"
+   ]
+  },
+  {
+   "id": "RTM-S8",
+   "title": "子分类",
+   "source": "主干 v0.2（P1 批次）",
+   "baseline": "done",
+   "keywords": [
+    "子分类",
+    "subcategory"
+   ],
+   "acceptance": [
+    "分类支持二级子分类（category / subcategory），建库索引可查",
+    "卡片可改子分类，支持批量（lib:set-category-many）；扩展投递可带子分类",
+    "左栏与检查器按 分类/子分类 级联展示"
+   ]
+  },
+  {
+   "id": "RTM-S9",
+   "title": "橡皮筋框选",
+   "source": "主干 v0.2（P1 批次）",
+   "baseline": "done",
+   "keywords": [
+    "橡皮筋",
+    "框选",
+    "rubber",
+    "boxSelect"
+   ],
+   "acceptance": [
+    "在瀑布流空白处按下拖动出现橡皮筋框（fixed 挂 body、无过渡跟手）",
+    "松手后框内卡片批量选中，可与 Ctrl/Shift 加选共存",
+    "滚动/缩放布局后框选坐标仍正确"
+   ]
+  },
+  {
+   "id": "RTM-S10",
+   "title": "相似图（主色 Lab + 宽高比加权；种子原写 dHash+主色）",
+   "source": "主干 v0.2（P1 批次）",
+   "baseline": "done",
+   "keywords": [
+    "相似",
+    "similar(",
+    "deltaE",
+    "paletteFromBGRA"
+   ],
+   "acceptance": [
+    "卡片可「找相似」，返回按相似度排序的列表并带相似度角标/chip",
+    "相似度加权：主色 Lab 距离 55% + 宽高比 25% + 同分类 10% + 同标签 15%，自适应截断避免全库命中",
+    "（种子验收原案：dHash 感知哈希 + 主色）——见备注"
+   ],
+   "note": "实测实现为主色 Lab 距离+宽高比+分类+标签加权（electron/tools.js similar()），未发现 dHash 感知哈希——要么补 dHash，要么修订需求描述，人工裁定"
+  },
+  {
+   "id": "RTM-S11",
+   "title": "置顶参考窗（透明度 / 鼠标穿透）",
+   "source": "主干 v0.2（P1 批次）",
+   "baseline": "done",
+   "keywords": [
+    "置顶",
+    "ignoreMouse",
+    "alwaysOnTop",
+    "setOpacity",
+    "pinIgnore"
+   ],
+   "acceptance": [
+    "检查器可开置顶参考小窗（alwaysOnTop，screen-saver 层级），加载 pin.html 极简入口",
+    "透明度可调（菜单/IPC setOpacity），鼠标可穿透（setIgnoreMouseEvents forward）",
+    "穿透后点不到自己，用全局热键（Ctrl+Shift+P）收回；可正常关闭"
+   ]
+  },
+  {
+   "id": "RTM-S12",
+   "title": "白边裁剪（自动 + 批量 + 灯箱裁剪显示）",
+   "source": "主干 v0.2（P1 批次）",
+   "baseline": "done",
+   "keywords": [
+    "白边",
+    "裁剪",
+    "autoTrim",
+    "crop_l"
+   ],
+   "acceptance": [
+    "导入可自动检测白边并存裁剪框（crop_l/t/r/b，-1=未检测），schema 迁移 v3→v4",
+    "支持对已有图手动/批量裁白边：检测→存裁剪框→重生成缩略图→重提色板",
+    "卡片与灯箱按裁剪后内容尺寸显示（aspect.ts contentSize/framePlaceholderHeight），原文件不动可还原"
+   ]
+  },
+  {
+   "id": "RTM-S13",
+   "title": "浏览器扩展桥接（127.0.0.1 + token）",
+   "source": "主干 v0.3",
+   "baseline": "done",
+   "keywords": [
+    "127.0.0.1",
+    "bridgeToken",
+    "桥接"
+   ],
+   "acceptance": [
+    "本地 HTTP 桥只监听 127.0.0.1（外部机器连不上），扩展 POST 图片 URL/数据入库",
+    "token 校验（bridgeToken，设置里可见；留空=不校验），token 不匹配返回 401",
+    "content-type 白名单与扩展名映射，来源 URL 归档"
+   ]
+  },
+  {
+   "id": "RTM-S14",
+   "title": "扫描接入（换目录 + 文件夹=分类）",
+   "source": "主干 v0.3",
+   "baseline": "done",
+   "keywords": [
+    "扫描接入",
+    "attach-scan",
+    "attachScan"
+   ],
+   "acceptance": [
+    "支持更换/迁移库目录（复制并切换）",
+    "「扫描并接入」扫描新目录：一级文件夹=分类、二级文件夹=子分类，用户勾选部分导入",
+    "已在库里的图（内容寻址命中）不重复导入"
+   ]
+  },
+  {
+   "id": "RTM-S15",
+   "title": "画板 / 工作集（多对多 + 拖拽 + 批量）",
+   "source": "主干 v0.3",
+   "baseline": "done",
+   "keywords": [
+    "画板",
+    "工作集",
+    "workset_items"
+   ],
+   "acceptance": [
+    "画板与图片多对多（两张表），一张图可进多个画板，删画板不动图片",
+    "瀑布流卡片可拖到左栏画板加入；支持批量加入/移出",
+    "画板视图只显示未进回收站的成员，带成员计数"
+   ]
+  },
+  {
+   "id": "RTM-S16",
+   "title": "动图播放（GIF/WebP/APNG 检测 + 角标 + 预览播放）",
+   "source": "主干 v0.3",
+   "baseline": "done",
+   "keywords": [
+    "动图",
+    "animated",
+    "apng",
+    "detectAnimated"
+   ],
+   "acceptance": [
+    "GIF/WebP/APNG 在导入时用纯字节解析检测动图标记（animated 列，schema v4→v5），不依赖解码器",
+    "存量库启动时 backfillAnimated 补齐标记",
+    "卡片有动图角标；检查器预览直接播原始文件而非静态缩略图"
+   ]
+  },
+  {
+   "id": "RTM-S17",
+   "title": "直送 PS 当前画布（COM + 剪贴板降级）",
+   "source": "主干 v0.3",
+   "baseline": "done",
+   "keywords": [
+    "sendToPs",
+    "DoJavaScript",
+    "Photoshop",
+    "直送"
+   ],
+   "acceptance": [
+    "「直送 PS」把图作为新图层贴进 Photoshop 当前活动画布：PowerShell 拉起 COM（Photoshop.Application + DoJavaScript）",
+    "中文/空格/反斜杠/单引号路径正确转义（JSX 与 PowerShell 双层），UTF-16LE base64 编码传脚本不丢字",
+    "超时/COM 不可用自动降级为复制到剪贴板，toast 文案区分成功/降级/失败并带原因（decideSendToPs 纯函数可单测）"
+   ]
+  },
+  {
+   "id": "RTM-S18",
+   "title": "全页设置（分类导航 / 搜索 / 快捷键自定义 / 合规参数）",
+   "source": "主干 v0.4",
+   "baseline": "done",
+   "keywords": [
+    "prefs",
+    "快捷键",
+    "setrow",
+    "设置页"
+   ],
+   "acceptance": [
+    "设置页分区完整（外观/热键/AI/库与存储/采集与合规/日志与诊断），带分区导航与设置项搜索",
+    "全局热键自定义：键盘事件转 accelerator、中文展示、冲突检测（settings-core 与主进程 JS 版行为一致）",
+    "prefs 读写走 mergePrefs（用户值覆盖默认、未触字段保默认、容忍脏数据）"
+   ]
+  },
+  {
+   "id": "RTM-S19",
+   "title": "全局错误日志（IPC / 渲染进程 / 崩溃）",
+   "source": "主干 v0.4",
+   "baseline": "done",
+   "keywords": [
+    "logger",
+    "uncaughtException",
+    "崩溃",
+    "日志"
+   ],
+   "acceptance": [
+    "按天分文件日志（userData/logs/rc-YYYY-MM-DD.log），含时间与级别",
+    "主进程 uncaughtException、所有 IPC handler 抛错、渲染进程异常与崩溃均落日志",
+    "设置页「日志与诊断」可一键打开日志目录"
+   ]
+  },
+  {
+   "id": "RTM-S20",
+   "title": "CLIP 零样本分类（基准 ≥90% 门禁）",
+   "source": "feat/clip-classify（合并 421b06d）",
+   "baseline": "done",
+   "keywords": [
+    "零样本",
+    "onnx",
+    "ClipEngine",
+    "clipClassify",
+    "阈值",
+    "归一",
+    "Xenova",
+    "BGRA"
+   ],
+   "acceptance": [
+    "CLIP（Xenova/clip-vit-base-patch32 量化 ONNX）零样本分类：预处理(BGRA)→text/vision embedding→余弦 top-1",
+    "采纳门禁：≥0.22 阈值才写 clip_cat/clip_score（schema v7），只作建议不直接改分类，用户手动采用",
+    "基准门禁：scripts/clip-benchmark.mjs 合成基准总体准确率 ≥90% 才允许合并（npm run bench:clip）"
+   ]
+  },
+  {
+   "id": "RTM-S21",
+   "title": "布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架）",
+   "source": "feat/relayout（合并 fc54d3d）",
+   "baseline": "done",
+   "keywords": [
+    "railSections",
+    "dockTabs",
+    "CommandPalette",
+    "命令面板",
+    "问询"
+   ],
+   "acceptance": [
+    "左栏分区走 Section 注册制（layout-registry：注册/排序/id 查询/折叠状态持久化），图标轨 + 可展开分区",
+    "检查器 Dock Tab 化（sanitizeDockTab 守卫未知 id，可收起到脊柱态）",
+    "Ctrl+K 全局命令面板：静态注册 + 动态命令（分类/画板），关键词多词 AND 过滤；问询抽屉留骨架位"
+   ]
+  },
+  {
+   "id": "RTM-S22",
+   "title": "网页采集 agent（NL 命令 + 反问 + robots 合规护栏）",
+   "source": "路线图（未排期，agent 种子 2026-10-27）",
+   "baseline": "todo",
+   "keywords": [
+    "crawler",
+    "robots",
+    "网页采集"
+   ],
+   "acceptance": [
+    "自然语言描述采集意图 → agent 反问澄清（站点/数量/尺度）→ 生成采集计划确认后执行",
+    "不可关闭合规护栏：robots.txt、诚实 UA、不带登录凭据、单域名限速、连续 403 自动停止、来源 URL 归档",
+    "采集历史入「采集」分区（走 S21 的 Section/Dock Tab/命令面板注册位）"
+   ],
+   "note": "设置页「采集与合规」段（crawler 参数 + robots 护栏文案）已先落地；agent 本体（NL 命令/反问/抓取调度）未实现"
+  },
+  {
+   "id": "RTM-S23",
+   "title": "问询引导 agent（检索式问答）",
+   "source": "路线图（未排期，agent 种子 2026-10-27）",
+   "baseline": "todo",
+   "keywords": [
+    "检索式",
+    "retrievalQa",
+    "askAgent"
+   ],
+   "acceptance": [
+    "问询抽屉支持对当前库检索式问答（如「最近收集的赛博朋克角色图」），答案附图片引用可点开",
+    "问答走库内检索（分类/标签/拼音/相似），不凭空生成不存在的图",
+    "入口复用 S21 问询抽屉骨架（FAB + 抽屉），不走命令面板"
+   ],
+   "note": "当前仅 App.tsx 抽屉骨架留位（属 S21 范畴），检索式问答本体未实现"
+  },
+  {
+   "id": "RTM-S24",
+   "title": "笔记系统（笔记 + 关联图片 + 拼音搜索）",
+   "source": "路线图（未排期，agent 种子 2026-10-27）",
+   "baseline": "todo",
+   "keywords": [
+    "noteId",
+    "note_id",
+    "笔记正文"
+   ],
+   "acceptance": [
+    "可创建/编辑/删除笔记，笔记可关联多张库内图片（多对多）",
+    "笔记标题与正文支持 拼音/首字母/中文子串 搜索",
+    "笔记进左栏分区与 Dock Tab（layout-registry 注册位已留：id 'notes'）"
+   ],
+   "note": "前瞻关键词（noteId/note_id/笔记正文）：实现落地后 RTM 自动翻转为 🟡/✅"
+  },
+  {
+   "id": "RTM-S25",
+   "title": "多标签工作集（tags 数据层已有，无界面）",
+   "source": "路线图（未排期，agent 种子 2026-10-27）",
+   "baseline": "todo",
+   "keywords": [
+    "asset_tags",
+    "setTags",
+    "多标签"
+   ],
+   "acceptance": [
+    "卡片可打多标签（tags / asset_tags 多对多），检查器可编辑（lib:set-tags IPC）",
+    "按标签过滤视图，可与分类/搜索叠加",
+    "标签选择器 UI 与标签管理入口（当前缺的就是这层界面）"
+   ],
+   "note": "数据层已有 tags/asset_tags 表与 setTags/store 通路，缺标签编辑与按标签过滤的界面"
+  },
+  {
+   "id": "RTM-S26",
+   "title": "CLIP 语义搜索（以文搜图）",
+   "source": "路线图（未排期，agent 种子 2026-10-27）",
+   "baseline": "todo",
+   "keywords": [
+    "semanticSearch",
+    "语义搜索",
+    "textEmbed"
+   ],
+   "acceptance": [
+    "查询文本过 CLIP text embedding，与库内图片 embedding 余弦相似排序返回",
+    "图片 embedding 落库缓存（增量计算），搜索可与其他筛选叠加",
+    "与现有主色相似（RTM-S10）互补：语义搜索管「像什么意思」，主色管「长得像」"
+   ],
+   "note": "现状只有构图/主色相似；CLIP embedding 目前只用于分类建议（S20），未做以文搜图。前瞻关键词落地后自动翻转"
+  },
+  {
+   "id": "RTM-S27",
+   "title": "云同步",
+   "source": "路线图（未排期，agent 种子 2026-10-27）",
+   "baseline": "todo",
+   "keywords": [
+    "cloudSync",
+    "云同步",
+    "webdav"
+   ],
+   "acceptance": [
+    "库数据与原图可选云同步（增量上传/下载），支持 WebDAV 等通用协议",
+    "冲突可解（以内容寻址为合并单位），同步状态可见可暂停",
+    "凭据只存本机，日志不落敏感信息"
+   ],
+   "note": "前瞻关键词（cloudSync/webdav）：实现落地后 RTM 自动翻转"
+  },
+  {
+   "id": "RTM-S28",
+   "title": "应用内插件系统（沙盒化，安全第一）",
+   "source": "任务规格（agent 2026-10-29）：manifest+main.js / vm.createContext 沙盒 / 权限最小注入 / 命令面板 + 设置页集成",
+   "baseline": "todo",
+   "keywords": [
+    "pluginHost",
+    "createPluginHost",
+    "validateManifest",
+    "plugin.json",
+    "run(commandId",
+    "prefs.plugins.enabled",
+    "plugin:toast",
+    "plugin:open-asset",
+    "plugins:set-enabled",
+    "commandRows"
+   ],
+   "acceptance": [
+    "插件 = plugins/<id>/plugin.json + main.js，manifest 校验失败（缺字段/非法 id/未声明权限/超限）拒绝加载并记日志",
+    "main.js 在 vm 沙盒执行：无 require/fs/process/网络，Function 造码被禁，宿主对象不外泄（JSON 过桥 + null 原型桥）",
+    "只注入 manifest 声明权限对应 API；加载与 run 均 5s 超时保护，异常捕获记日志不崩主进程",
+    "命令以 plugin.<id>.<cmd> 注册进命令面板；设置页「插件」分区可启停（prefs.plugins.enabled）",
+    "内置 random-pick（随机一图）与 tag-census（标签普查）能加载并跑通；tests/plugins.test.mjs ≥14 条 RTM-S28 用例"
+   ],
+   "note": "剪贴板走独立 clipboard 权限（文档 docs/PLUGINS.md）；宿主 electron/plugins.js 纯模块可单测"
+  }
+ ]
 }

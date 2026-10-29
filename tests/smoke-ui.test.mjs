@@ -78,6 +78,17 @@ const killApp = () => {
   spawnSync('taskkill', ['/F', '/IM', 'RefCollector.exe'], { stdio: 'ignore' });
 };
 
+/**
+ * 把物理鼠标光标停到屏幕角落。命令面板条目有 onMouseEnter 悬停选中：
+ * 前一个用例的 CDP 真鼠标拖拽会把光标留在屏幕中央，下一个用例的窗口恰好开在
+ * 同一块区域时，面板一打开光标下的条目就被选中，断言「首条默认选中」会被干扰。
+ */
+const parkCursor = () => {
+  spawnSync('powershell', ['-NoProfile', '-Command',
+    'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(2, 2)'],
+    { stdio: 'ignore', timeout: 15000 });
+};
+
 const shotPath = (name) => path.join(OUT, name);
 
 function runElectron({ js, shot, extraEnv = {}, timeoutMs = 90000, outDir = OUT, lib = LIB, userdata }) {
@@ -273,6 +284,7 @@ const IMG2 = path.join(OUT2, 'img');
 
 test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认态 / 图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
   killApp();
+  parkCursor();   // 上一个用例的真鼠标拖拽可能把光标留在屏幕中央（命令面板悬停选中会被干扰）
   fs.rmSync(OUT2, { recursive: true, force: true });
   for (const d of [OUT2, LIB2, IMG2]) fs.mkdirSync(d, { recursive: true });
   assert.ok(fs.existsSync(ELECTRON), '找不到 electron 可执行文件: ' + ELECTRON);

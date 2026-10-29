@@ -42,6 +42,7 @@
       "electron/**/*",
       "dist/**/*",
       "assets/**/*",
+      "plugins/**/*",
       "pin.html",
       "package.json"
     ],
