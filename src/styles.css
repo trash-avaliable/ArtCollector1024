@@ -1109,6 +1109,12 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
   font-family: var(--mono); font-size: 11px; max-width: 300px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2);
 }
+/* 插件分区（RTM-S28）：名称行 + 权限/命令 chip 行 */
+.plughead { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0 2px; font-size: 13px; }
+.plughead .settoggle { padding: 0; border-bottom: none; }
+.setrow.col .btnrow { flex-wrap: wrap; align-items: center; row-gap: 4px; }
+.setrow.col .btnrow .tk { max-width: none; }
+.setrow.col .btnrow .dimv { font-family: var(--mono); font-size: 10.5px; word-break: break-all; }
 .setrow button {
   height: 28px; padding: 0 10px; font-size: 11.5px; border: 1px solid var(--line-2);
   background: var(--panel); transition: border-color var(--direct) var(--ease);

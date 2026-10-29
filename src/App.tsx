@@ -12,9 +12,13 @@ import { CommandPalette } from './components/CommandPalette';
 import { GuideDrawer, GuideFab } from './components/Guide';
 import {
   commands, dockTabs, parseCollapse, sanitizeDockTab, serializeCollapse, toggleCollapse,
+  pluginCommandEntries,
   type CollapseState, type CommandEntry
 } from './lib/layout-registry';
-import { EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Note, type Prefs, type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset } from './types';
+import {
+  EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Note, type Prefs, type PluginInfo,
+  type ScanGroup, type ScanResult, type Sort, type Stats, type Toast, type Tree, type View, type Workset
+} from './types';
 
 const idsOf = (s: Set<string>): string[] => {
   const out: string[] = [];
@@ -76,6 +80,8 @@ export default function App() {
   const [hotkeys, setHotkeys] = useState<{ bindings: Record<string, string>; registered: Record<string, boolean> } | null>(null);
   const [version, setVersion] = useState('');
   const [scan, setScan] = useState<{ root: string; result: ScanResult | null; picked: Set<string>; loose: boolean } | null>(null);
+  /* ---------- 插件系统（RTM-S28）：设置页列表 + 命令面板动态条目 + toast/openAsset 事件 ---------- */
+  const [plugins, setPlugins] = useState<PluginInfo[]>([]);
 
   /* ---------- 布局重构新增状态：左栏分区/图标轨、右栏 Tab/收起、命令面板、问询抽屉 ---------- */
   const [railMini, setRailMini] = useState(false);
@@ -158,6 +164,7 @@ export default function App() {
       setPrefsFull(fullPrefs(prefs));
       window.api.lib.hotkeysCurrent().then(setHotkeys).catch(() => { });
       window.api.lib.version().then(setVersion).catch(() => { });
+      window.api.plugins.list().then(setPlugins).catch(() => { });
       setRoot(info.root);
       setStats(info.stats);
       setTree(info.tree);
@@ -199,7 +206,13 @@ export default function App() {
       if (p.stage === 'download') setBusy(`下载 CLIP 模型 ${p.done}/${p.total}…`);
       else setBusy(`AI 分类 ${p.done}/${p.total} · 采纳 ${p.adopted}`);
     });
-    return () => { off1(); off2(); off3(); off4(); off5(); offHk(); off6(); off7(); };
+    /* 插件事件（RTM-S28）：toast 直接提示；openAsset 先刷新再开灯箱 */
+    const offP1 = window.api.on.pluginToast(p => setToast({ msg: `[插件] ${p.msg}` }));
+    const offP2 = window.api.on.pluginOpenAsset(async p => {
+      await refreshRef.current();
+      setLightboxId(p.id);
+    });
+    return () => { off1(); off2(); off3(); off4(); off5(); offHk(); off6(); off7(); offP1(); offP2(); };
   }, []);
   useEffect(() => { refresh(); }, [view, category, sub, dq, sort, colorFilter, sim, wsFilter]);
 
@@ -843,6 +856,22 @@ export default function App() {
     'layout.dock-hidden': toggleDockHidden,
     'layout.guide': () => setGuideOpen(true)
   };
+  /* ---------- 插件命令（RTM-S28）：主进程跑插件 run()，完成后刷新库（import 类命令会改库存） ---------- */
+  const runPluginCommand = async (pluginId: string, cmdId: string) => {
+    try {
+      const r = await window.api.plugins.runCommand(pluginId, cmdId);
+      if (r && !r.ok) setToast({ msg: `插件命令失败：${r.error || '未知错误'}` });
+      else await refreshRef.current();
+    } catch (err: any) {
+      setToast({ msg: '插件命令失败：' + (err?.message || err) });
+    }
+  };
+  /** 设置页启停开关：主进程写 prefs.plugins.enabled 并加载/卸载沙盒，返回最新列表 */
+  const togglePlugin = async (id: string, enabled: boolean) => {
+    try { setPlugins(await window.api.plugins.setEnabled(id, enabled) || []); }
+    catch { setToast({ msg: '插件启停失败' }); }
+  };
+
   const commandEntries: CommandEntry[] = (() => {
     const list: CommandEntry[] = commands.list().map(def => ({
       def,
@@ -856,6 +885,13 @@ export default function App() {
       def: { id: `ws.${w.id}`, title: `跳转：画板「${w.name}」`, group: 'board', keywords: [w.name], order: 40 },
       run: () => selectBoard(w.id)
     }));
+    // 插件命令（RTM-S28）：id = plugin.<pid>.<cmdId>，只挂已加载且启用的插件
+    pluginCommandEntries(
+      plugins.filter(p => p.loaded && !p.disabled).map(p => ({
+        pluginId: p.id, pluginName: p.name, commands: p.commands
+      })),
+      (pid, cmdId) => { void runPluginCommand(pid, cmdId); }
+    ).forEach(e => list.push(e));
     return list;
   })();
   const runCommand = (entry: CommandEntry) => { setCmdOpen(false); entry.run(); };
@@ -1086,6 +1122,8 @@ export default function App() {
           prefs={prefsFull}
           hotkeys={hotkeys}
           version={version}
+          plugins={plugins}
+          onTogglePlugin={togglePlugin}
           onSetPrefs={onSetPrefs}
           onPickRoot={pickRoot}
           onOpenRoot={() => window.api.lib.openRoot()}

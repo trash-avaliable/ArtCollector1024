@@ -13,6 +13,7 @@ const { buildSendToPsScript, encodePsCommand, decideSendToPs } = require('./ps-b
 const { ClipEngine } = require('./clip');
 const { WebCrawler } = require('./crawler');
 const { parseIntent, CRAWLER_UA } = require('./intent');
+const { createPluginHost, EVENT: PLUGIN_EVENT } = require('./plugins');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
 // 扩展必须放在 asar 外（用户要在资源管理器里选中它加载），打包后落在 resources/extension
@@ -50,6 +51,9 @@ let quitting = false;
 let clipTimer = null;
 let clipPaused = false;
 let lastClipHash = '';
+
+/* ---- 插件系统（RTM-S28）：宿主在 store.init 之后创建，命令面板 / 设置页经 IPC 访问 ---- */
+let pluginHost = null;
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'refimg', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -399,6 +403,23 @@ app.whenReady().then(async () => {
   });
   if (process.env.RC_SEED) {
     try { await store.importPaths([process.env.RC_SEED]); } catch (e) { console.error('seed failed', e); }
+  }
+
+  /* ---- 插件系统：内置 plugins/ + 用户 userData/plugins，沙盒加载（RTM-S28） ---- */
+  try {
+    const userPluginsDir = path.join(app.getPath('userData'), 'plugins');
+    fs.mkdirSync(userPluginsDir, { recursive: true });
+    pluginHost = createPluginHost({
+      store,
+      builtinDir: path.join(__dirname, '..', 'plugins'),
+      userDir: userPluginsDir,
+      sendData: (ch, payload) => { if (win && !win.isDestroyed()) win.webContents.send(ch, payload); },
+      clipboardWrite: (text) => { clipboard.writeText(text); return true; },
+      log: (...a) => console.log('[plugins]', ...a)
+    });
+    pluginHost.loadAll();
+  } catch (e) {
+    console.error('[plugins] 宿主初始化失败（不影响主功能）:', e);
   }
 
   protocol.handle('refimg', async (req) => {
@@ -923,4 +944,14 @@ ipcMain.handle('crawler:start', (e, task) => {
 });
 ipcMain.on('crawler:cancel', () => webCrawler.cancel());
 ipcMain.handle('crawler:guardrails', () => ({ ua: CRAWLER_UA }));
+
+/* ---- 插件系统（RTM-S28）：列表 / 启停 / 命令执行；toast 与 openAsset 走事件推给 renderer ---- */
+ipcMain.handle('plugins:list', () => (pluginHost ? pluginHost.list() : []));
+ipcMain.handle('plugins:set-enabled', (e, { id, enabled }) => (
+  pluginHost ? pluginHost.setEnabled(id, !!enabled).list : []
+));
+ipcMain.handle('plugins:run-command', async (e, { pluginId, commandId }) => {
+  if (!pluginHost) return { ok: false, error: '插件系统未初始化' };
+  return pluginHost.runCommand(pluginId, commandId);
+});
 

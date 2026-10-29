@@ -126,6 +126,28 @@ export type CrawlIntent = {
 
 export type CrawlTask = { url: string; keyword: string; count: number; category?: string };
 
+/* ---------- 插件系统（RTM-S28） ---------- */
+
+/** plugins:list 的行：设置页「插件」分区与命令面板共用 */
+export type PluginInfo = {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  permissions: string[];
+  commands: { id: string; title: string; order?: number }[];
+  source: 'builtin' | 'user';
+  dir: string;
+  disabled: boolean;
+  loaded: boolean;
+  error: string;
+  /** manifest 校验被拒的目录（无 id/name，仅 error 可读） */
+  rejected?: boolean;
+};
+
+/** plugins:run-command 的返回 */
+export type PluginRunResult = { ok: boolean; error?: string; timedOut?: boolean };
+
 export type Prefs = {
   railViews?: View[]; railCats?: string[];
   /** 左栏整体折叠成 56px 图标轨 */
@@ -142,6 +164,8 @@ export type Prefs = {
   clip?: { enabled?: boolean; threshold?: number };
   crawler?: { maxPerTask?: number; sameDomainOnly?: boolean; domainDelaySec?: number; whitelist?: string; confirmed?: boolean };
   ui?: { density?: 'cozy' | 'compact'; reducedMotion?: boolean };
+  /** 插件启停状态（id → boolean，缺省启用；宿主经 prefs.plugins.enabled 读写） */
+  plugins?: { enabled?: Record<string, boolean> };
 };
 
 export type ColorHit = { hex: string; dist: number; pct: number };
@@ -250,6 +274,11 @@ declare global {
         cancel(): void;
         guardrails(): Promise<{ ua: string }>;
       };
+      plugins: {
+        list(): Promise<PluginInfo[]>;
+        setEnabled(id: string, enabled: boolean): Promise<PluginInfo[]>;
+        runCommand(pluginId: string, commandId: string): Promise<PluginRunResult>;
+      };
       on: {
         importProgress(cb: (p: { done: number; total: number; added: number }) => void): () => void;
         importDone(cb: (p: any) => void): () => void;
@@ -260,6 +289,8 @@ declare global {
         saveClip(cb: () => void): () => void;
         librarySwitched(cb: (p: { root: string; stats: Stats }) => void): () => void;
         hotkeysState(cb: (p: { bindings: Record<string, string>; registered: Record<string, boolean> }) => void): () => void;
+        pluginToast(cb: (p: { plugin: string; msg: string }) => void): () => void;
+        pluginOpenAsset(cb: (p: { plugin: string; id: string }) => void): () => void;
       };
     };
   }

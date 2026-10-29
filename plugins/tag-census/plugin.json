@@ -1,0 +1,10 @@
+{
+  "id": "tag-census",
+  "name": "标签普查",
+  "version": "1.0.0",
+  "description": "统计全库标签使用次数，生成文本报告并复制到剪贴板，方便整理标签体系。剪贴板写入走独立 clipboard 权限（见 docs/PLUGINS.md）。",
+  "permissions": ["search", "events", "clipboard", "commands"],
+  "commands": [
+    { "id": "census", "title": "标签普查：统计全库标签并复制报告", "order": 20 }
+  ]
+}

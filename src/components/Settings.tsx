@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   eventToAccelerator, describeAccelerator, normalizeAccelerator, fullPrefs, PREF_DEFAULTS
 } from '../lib/settings-core';
-import type { Prefs } from '../types';
+import type { Prefs, PluginInfo } from '../types';
 
 type Full = ReturnType<typeof fullPrefs>;
 
@@ -78,17 +78,20 @@ const NAV: NavItem[] = [
   { key: 'ui', label: '外观', icon: 'M12 3a9 9 0 100 18 9 9 0 000-18z', group: '偏好', items: ['密度', '动效', '主题'] },
   { key: 'crawler', label: '采集与合规', icon: 'M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5', group: '采集', items: ['数量上限', '限速', '同域限制', '白名单', '合规确认'] },
   { key: 'extension', label: '扩展与桥接', icon: 'M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z', group: '采集', items: ['浏览器扩展', '端口', '令牌', '加载目录'] },
+  { key: 'plugins', label: '插件', icon: 'M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z', group: '采集', items: ['已加载插件', '启用/禁用', '权限', '命令数', '沙盒'] },
   { key: 'logs', label: '日志与诊断', icon: 'M4 5h16v14H4zM8 9h8M8 13h5', group: '采集', items: ['错误日志', '打开日志', '版本'] }
 ];
 
 export function Settings({
-  root, stats, bridge, prefs, hotkeys, version,
-  onSetPrefs, onPickRoot, onOpenRoot, onOpenExt, onOpenLogs, onClose
+  root, stats, bridge, prefs, hotkeys, version, plugins,
+  onSetPrefs, onPickRoot, onOpenRoot, onOpenExt, onOpenLogs, onTogglePlugin, onClose
 }: {
   root: string; stats: { total: number; trash?: number }; bridge: { port: number; token: string; extDir: string } | null;
   prefs: Full; hotkeys: { bindings: Record<string, string>; registered: Record<string, boolean> } | null; version: string;
+  plugins: PluginInfo[];
   onSetPrefs: (patch: Partial<Prefs>) => void;
-  onPickRoot: () => void; onOpenRoot: () => void; onOpenExt: () => void; onOpenLogs: () => void; onClose: () => void;
+  onPickRoot: () => void; onOpenRoot: () => void; onOpenExt: () => void; onOpenLogs: () => void;
+  onTogglePlugin: (id: string, enabled: boolean) => void; onClose: () => void;
 }) {
   const [active, setActive] = useState('general');
   const [query, setQuery] = useState('');
@@ -262,6 +265,53 @@ export function Settings({
           <div className="notebox">
             Chrome / Edge → chrome://extensions → 开发者模式 → 加载已解压的扩展程序 →
             选上面的目录，再把令牌粘进扩展设置页。之后网页图片右键即可一键入库。
+          </div>
+        </>
+      );
+      case 'plugins': return (
+        <>
+          <div className="st">插件</div>
+          {!plugins.length && (
+            <div className="notebox">
+              还没有加载任何插件。内置插件放在安装目录的 plugins/ 里，用户插件放在
+              userData/plugins/（每个插件一个文件夹：plugin.json + main.js）。
+            </div>
+          )}
+          {plugins.map(p => (
+            <div className="setrow col" key={p.id}>
+              <div className="plughead">
+                <span>
+                  <b>{p.name}</b>
+                  {p.version && <i className="dimv"> v{p.version}</i>}
+                  <i className="dimv" title={p.dir}> · {p.source === 'builtin' ? '内置' : '用户'} · {p.commands.length} 条命令</i>
+                  {p.error && <i className="hkclash"> {p.error}</i>}
+                </span>
+                {!p.rejected && (
+                  <Toggle
+                    label={p.disabled ? '已禁用' : '运行中'}
+                    on={!p.disabled}
+                    onChange={v => onTogglePlugin(p.id, v)}
+                  />
+                )}
+              </div>
+              {!p.rejected && (
+                <div className="btnrow">
+                  {p.permissions.map(perm => (
+                    <b className="tk" key={perm} title={`沙盒权限：${perm}`}>{perm}</b>
+                  ))}
+                  <b className="dimv">
+                    {p.commands.length
+                      ? p.commands.map(c => `plugin.${p.id}.${c.id}`).join('、')
+                      : '无命令'}
+                  </b>
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="notebox">
+            插件跑在 Node vm 沙盒里：<b>没有</b> require / 文件系统 / process / 网络访问，
+            只注入上方列出的权限对应 API；每次执行有 5 秒超时保护，异常只记日志不会影响主程序。
+            禁用插件会立即停止其命令执行（状态保存在 prefs.plugins.enabled）。详见 docs/PLUGINS.md。
           </div>
         </>
       );

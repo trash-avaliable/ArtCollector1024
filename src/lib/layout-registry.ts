@@ -97,7 +97,7 @@ dockTabs.register({ id: 'notes', en: 'NOTES', cn: '笔记', order: 20 });
 
 /* ================= 命令面板（Ctrl+K） ================= */
 
-export type CommandGroup = 'view' | 'category' | 'board' | 'action' | 'layout';
+export type CommandGroup = 'view' | 'category' | 'board' | 'action' | 'layout' | 'plugin';
 
 export type CommandDef = {
   /** 稳定 id：静态命令建议用 'view.xxx' / 'act.xxx' / 'layout.xxx' 前缀；动态命令用 'cat.<名>' / 'ws.<id>' */
@@ -135,8 +135,53 @@ commands.register({ id: 'layout.dock-hidden', title: '切换：收起右栏检�
 commands.register({ id: 'layout.guide', title: '打开问询助手', group: 'layout', keywords: ['ask', 'guide', 'wenzhu', 'wz'], order: 202 });
 
 export const COMMAND_GROUP_LABEL: Record<CommandGroup, string> = {
-  view: '视图', category: '分类', board: '画板', action: '动作', layout: '布局'
+  view: '视图', category: '分类', board: '画板', action: '动作', layout: '布局', plugin: '插件'
 };
+
+/* ================= 插件命令（RTM-S28，复用命令注册制） ================= */
+
+/**
+ * 插件命令的固定 id 模式：`plugin.<pluginId>.<cmdId>`（主进程 pluginHost.commandRows 同构）。
+ * 插件命令的数据来自主进程（plugin.json manifest），不能在模块加载期静态注册进 commands
+ * 注册表（id 会随插件启停增删，而注册表不接受反注册），所以与分类/画板一样走
+ * 「App 拿数据 → 本函数拼装 def → 命令面板动态条目」的注册制扩展点。
+ */
+export const pluginCommandId = (pluginId: string, cmdId: string) => `plugin.${pluginId}.${cmdId}`;
+
+export type PluginCommandSource = {
+  pluginId: string;
+  pluginName: string;
+  commands: { id: string; title: string; order?: number }[];
+};
+
+/** 插件命令 → 命令面板 def（group 固定 'plugin'，keywords 带插件名便于检索） */
+export function pluginCommandDefs(sources: PluginCommandSource[]): CommandDef[] {
+  return (sources || []).flatMap(s => (s.commands || []).map(c => ({
+    id: pluginCommandId(s.pluginId, c.id),
+    title: c.title,
+    hint: s.pluginName,
+    keywords: ['插件', 'plugin', s.pluginName.toLowerCase(), s.pluginId],
+    group: 'plugin' as const,
+    order: c.order ?? 100
+  })));
+}
+
+/**
+ * 插件命令 → 命令面板条目（def + run 配对，与静态命令同构）。
+ * run 由调用方注入（App 传「IPC 调主进程跑插件 run()」的回调），本模块不持有任何 UI 状态。
+ */
+export function pluginCommandEntries(
+  sources: PluginCommandSource[],
+  run: (pluginId: string, cmdId: string) => void
+): CommandEntry[] {
+  return pluginCommandDefs(sources).map(def => {
+    const rest = def.id.slice('plugin.'.length);
+    const dot = rest.indexOf('.');
+    const pluginId = rest.slice(0, dot);
+    const cmdId = rest.slice(dot + 1);
+    return { def, run: () => run(pluginId, cmdId) };
+  });
+}
 
 /**
  * 命令过滤：query 按空白拆词、全部词都命中才算匹配；

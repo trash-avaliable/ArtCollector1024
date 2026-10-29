@@ -111,6 +111,12 @@ contextBridge.exposeInMainWorld('api', {
     cancel: () => ipcRenderer.send('crawler:cancel'),
     guardrails: () => ipcRenderer.invoke('crawler:guardrails')
   },
+  // 插件系统（RTM-S28）：设置页列表/启停 + 命令面板执行
+  plugins: {
+    list: () => ipcRenderer.invoke('plugins:list'),
+    setEnabled: (id, enabled) => ipcRenderer.invoke('plugins:set-enabled', { id, enabled }),
+    runCommand: (pluginId, commandId) => ipcRenderer.invoke('plugins:run-command', { pluginId, commandId })
+  },
   on: {
     importProgress: (cb) => on('import:progress', cb),
     importDone: (cb) => on('import:done', cb),
@@ -120,6 +126,8 @@ contextBridge.exposeInMainWorld('api', {
     focusSearch: (cb) => on('ui:focus-search', cb),
     saveClip: (cb) => on('ui:save-clip', cb),
     librarySwitched: (cb) => on('library:switched', cb),
-    hotkeysState: (cb) => on('hotkeys:state', cb)
+    hotkeysState: (cb) => on('hotkeys:state', cb),
+    pluginToast: (cb) => on('plugin:toast', cb),
+    pluginOpenAsset: (cb) => on('plugin:open-asset', cb)
   }
 });

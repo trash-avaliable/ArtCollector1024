@@ -1,0 +1,10 @@
+{
+  "id": "random-pick",
+  "name": "随机一图",
+  "version": "1.0.0",
+  "description": "从全库随机抽一张参考图打开，帮你重新发现吃灰的素材。命令面板搜「随机」即可使用。",
+  "permissions": ["search", "events", "commands"],
+  "commands": [
+    { "id": "random", "title": "随机一图", "order": 10 }
+  ]
+}
