@@ -133,6 +133,11 @@ commands.register({ id: 'act.settings', title: '库设置', group: 'action', key
 commands.register({ id: 'layout.rail-mini', title: '切换：左栏图标轨', group: 'layout', keywords: ['rail', 'mini', 'zuoLan', 'zld'], order: 200 });
 commands.register({ id: 'layout.dock-hidden', title: '切换：收起右栏检查器', group: 'layout', keywords: ['dock', 'shouqi', 'sq'], order: 201 });
 commands.register({ id: 'layout.guide', title: '打开问询助手', group: 'layout', keywords: ['ask', 'guide', 'wenzhu', 'wz'], order: 202 });
+commands.register({ id: 'layout.theme.endfield-light', title: '切换主题：Endfield 现场（默认浅色）', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'endfield', 'light', '浅色', '主题', '外观'], order: 203 });
+commands.register({ id: 'layout.theme.ark', title: '切换主题：Ark 工业信息（浅色）', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'ark', 'light', '浅色', '主题', '外观'], order: 204 });
+commands.register({ id: 'layout.theme.exa', title: '切换主题：Exa 午夜档案（深色）', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'exa', 'dark', '深色', '暗色', '主题', '外观'], order: 205 });
+commands.register({ id: 'layout.theme.popucom', title: '切换主题：PopuCom 波普（浅色）', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'popucom', 'light', '浅色', '主题', '外观'], order: 206 });
+commands.register({ id: 'layout.theme.corporate', title: '切换主题：Corporate 极简（浅色）', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'corporate', 'light', '浅色', '主题', '外观'], order: 207 });
 
 export const COMMAND_GROUP_LABEL: Record<CommandGroup, string> = {
   view: '视图', category: '分类', board: '画板', action: '动作', layout: '布局', plugin: '插件'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  eventToAccelerator, describeAccelerator, normalizeAccelerator, fullPrefs, PREF_DEFAULTS
+  eventToAccelerator, describeAccelerator, normalizeAccelerator, fullPrefs, PREF_DEFAULTS, THEMES
 } from '../lib/settings-core';
 import type { Prefs, PluginInfo } from '../types';
 
@@ -212,7 +212,21 @@ export function Settings({
           </div>
           <Toggle label="减少动效（关闭入场动画与过渡）" on={prefs.ui.reducedMotion}
             onChange={v => set('ui', { reducedMotion: v })} />
-          <div className="setrow"><span>主题</span><b className="dimv">Endfield 浅色 · 组件清透（当前契约锁定）</b></div>
+          <div className="setrow col">
+            <span>主题（即时生效，存 prefs.ui.theme）</span>
+            <div className="themecards" role="radiogroup" aria-label="主题">
+              {THEMES.map(t => (
+                <button key={t.id} role="radio" aria-checked={prefs.ui.theme === t.id}
+                  className={'themecard' + (prefs.ui.theme === t.id ? ' on' : '')}
+                  onClick={() => set('ui', { theme: t.id })}>
+                  <span className={'tp ' + t.thumb} aria-hidden="true"><i /><i /><i /></span>
+                  <span className="tnm">{t.name}</span>
+                  <span className="tdsc">{t.desc}</span>
+                  {prefs.ui.theme === t.id && <span className="tuse">使用中</span>}
+                </button>
+              ))}
+            </div>
+          </div>
         </>
       );
       case 'crawler': return (

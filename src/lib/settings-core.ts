@@ -128,6 +128,42 @@ function defaultMatch(norm: string, e: KeyboardEvent): boolean {
 
 /* ---------------- prefs 默认值与深合并 ---------------- */
 
+/* ---------- 主题（外观设置） ---------- */
+
+/**
+ * 合法主题 id：styles.css 里 :root（endfield 默认浅色）与
+ * [data-theme="ark"|"exa"|"popucom"|"corporate"] 四套变量组（RTM-S29 五家族）。
+ */
+export const THEME_IDS = ['endfield-light', 'ark', 'exa', 'popucom', 'corporate'] as const;
+export type ThemeId = (typeof THEME_IDS)[number];
+
+/** ark-ui 家族名：驱动 data-ark-theme（入场动效变体按家族取） */
+export type ThemeFamily = 'endfield' | 'ark' | 'exa' | 'popucom' | 'corporate';
+
+export const THEME_FAMILY: Record<ThemeId, ThemeFamily> = {
+  'endfield-light': 'endfield',
+  ark: 'ark',
+  exa: 'exa',
+  popucom: 'popucom',
+  corporate: 'corporate'
+};
+
+/** 设置页主题卡 / 命令面板共用的家族元数据（thumb = 缩略示意配色类） */
+export const THEMES: { id: ThemeId; family: ThemeFamily; name: string; desc: string; thumb: string }[] = [
+  { id: 'endfield-light', family: 'endfield', name: 'Endfield 现场', desc: '素色纸面 · 墨黑铭牌 · 信号黄点缀，工业直角（默认）', thumb: 'lp' },
+  { id: 'ark', family: 'ark', name: 'Ark 工业信息', desc: '黑白青信息系统 · 裁切擦入动效', thumb: 'fp' },
+  { id: 'exa', family: 'exa', name: 'Exa 午夜档案', desc: '午夜蓝深底 · 水青宇宙档案（唯一深色）', thumb: 'xp' },
+  { id: 'popucom', family: 'popucom', name: 'PopuCom 波普', desc: '米白暖纸 · 蓝黄橙 · 弹性回主动效', thumb: 'pp' },
+  { id: 'corporate', family: 'corporate', name: 'Corporate 极简', desc: '黑白酸柠 · 克制工作室 · 快速擦除动效', thumb: 'cp' }
+];
+
+/** 任意来历的 prefs.ui.theme 洗成合法主题；非法/缺省回落浅色（prefs 文件被手改坏也不崩） */
+export function normalizeTheme(raw: unknown): ThemeId {
+  return typeof raw === 'string' && (THEME_IDS as readonly string[]).includes(raw)
+    ? raw as ThemeId
+    : 'endfield-light';
+}
+
 export const PREF_DEFAULTS = {
   hotkeys: {
     wake: 'Alt+Space',
@@ -157,7 +193,8 @@ export const PREF_DEFAULTS = {
   },
   ui: {
     density: 'cozy',
-    reducedMotion: false
+    reducedMotion: false,
+    theme: 'endfield-light'
   }
 } as const;
 
@@ -181,7 +218,10 @@ export function mergePrefs<T extends Plain>(defaults: T, saved: Plain | undefine
 }
 
 export function fullPrefs(saved: Plain | undefined | null) {
-  return mergePrefs(PREF_DEFAULTS as unknown as Plain, saved) as typeof PREF_DEFAULTS;
+  const merged = mergePrefs(PREF_DEFAULTS as unknown as Plain, saved);
+  // ui.theme 单独过白名单：mergePrefs 只做浅合并，垃圾值会原样穿透
+  const ui = { ...(merged.ui as Plain), theme: normalizeTheme((merged.ui as Plain).theme) };
+  return { ...merged, ui } as typeof PREF_DEFAULTS;
 }
 
 export type FullPrefs = typeof PREF_DEFAULTS;

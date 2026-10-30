@@ -7,8 +7,9 @@ import { ClipCard, DropVeil, Lightbox, ToastBar } from './components/Overlays';
 import { CrawlerPanel } from './components/Crawler';
 import { NoteView } from './components/Notes';
 import { Settings } from './components/Settings';
-import { fullPrefs, matchesAppKey, type FullPrefs } from './lib/settings-core';
+import { fullPrefs, matchesAppKey, THEME_FAMILY, THEMES, type FullPrefs, type ThemeId } from './lib/settings-core';
 import { CommandPalette } from './components/CommandPalette';
+import { TopoBackground } from './components/TopoBackground';
 import { GuideDrawer, GuideFab } from './components/Guide';
 import {
   commands, dockTabs, parseCollapse, sanitizeDockTab, serializeCollapse, toggleCollapse,
@@ -702,6 +703,28 @@ export default function App() {
     setPrefsFull(fullPrefs(saved));
   };
 
+  /* ---------- 主题切换（设置 → 外观 / 命令面板）：写 prefs.ui.theme，根元素 data-theme 即时生效 ---------- */
+  const theme: ThemeId = prefsFull.ui.theme;
+  const setTheme = (id: ThemeId) => {
+    if (id === theme) return;
+    void onSetPrefs({ ui: { ...prefsFull.ui, theme: id } });
+  };
+
+  // 根元素之外（body 背景 / 原生滚动条 / 原生控件）也要吃到主题变量
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  // 主题切换瞬间：根元素挂一次性 .theme-swap，色彩 300ms 平滑过渡（非跳变），320ms 后摘除
+  const themeSwapTimer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const el = document.documentElement;
+    el.classList.add('theme-swap');
+    window.clearTimeout(themeSwapTimer.current);
+    themeSwapTimer.current = window.setTimeout(() => el.classList.remove('theme-swap'), 340);
+    return () => window.clearTimeout(themeSwapTimer.current);
+  }, [theme]);
+
   const pickRoot = async () => {
     const p = await window.api.lib.pickRoot();
     if (p) { setSettings(false); setAskRoot(p); }
@@ -856,6 +879,8 @@ export default function App() {
     'layout.dock-hidden': toggleDockHidden,
     'layout.guide': () => setGuideOpen(true)
   };
+  /* 五条「切换主题」命令（RTM-S29）：layout.theme.<id> 与 layout-registry 注册一一对应 */
+  for (const t of THEMES) commandHandlers[`layout.theme.${t.id}`] = () => setTheme(t.id);
   /* ---------- 插件命令（RTM-S28）：主进程跑插件 run()，完成后刷新库（import 类命令会改库存） ---------- */
   const runPluginCommand = async (pluginId: string, cmdId: string) => {
     try {
@@ -899,7 +924,8 @@ export default function App() {
   return (
     <div
       className="win"
-      data-ark-theme="endfield"
+      data-theme={theme}
+      data-ark-theme={THEME_FAMILY[theme]}
       data-ark-depth="complex"
       data-density={prefsFull.ui.density}
       data-reduce={prefsFull.ui.reducedMotion ? '1' : '0'}
@@ -959,6 +985,7 @@ export default function App() {
         />
 
         <main className="stage">
+          <TopoBackground />
           {busy && <div className="scan" />}
           {activeNoteId ? (
             /* 笔记视图（RTM-S24）：左列笔记列表 + 右侧编辑器 + 关联图片，点缩略图开灯箱 */
