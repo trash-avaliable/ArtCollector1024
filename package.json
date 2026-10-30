@@ -13,7 +13,8 @@
     "dist": "vite build && electron-builder --win nsis",
     "test": "node --test tests/*.test.mjs",
     "rtm": "node scripts/rtm.mjs",
-    "bench:clip": "electron scripts/clip-benchmark.mjs"
+    "bench:clip": "electron scripts/clip-benchmark.mjs",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "onnxruntime-node": "^1.30.0",
