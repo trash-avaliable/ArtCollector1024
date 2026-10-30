@@ -122,7 +122,10 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      spellcheck: false
+      spellcheck: false,
+      /* RTM-S29：RC_NOGPU=1 下发到渲染层（preload 从 process.argv 读）——
+         等高线背景据此直接走 SVG 兜底，不赌 WebGL 探测是否被 SwiftShader 蒙混过关 */
+      additionalArguments: ['--rc-nogpu=' + (process.env.RC_NOGPU === '1' ? '1' : '0')]
     }
   });
 
