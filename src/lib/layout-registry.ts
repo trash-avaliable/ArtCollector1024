@@ -130,7 +130,7 @@ commands.register({ id: 'act.import', title: '导入图片 / 文件夹', group: 
 commands.register({ id: 'act.capture', title: '网页采集：一句话找参考图', group: 'action', keywords: ['capture', 'crawler', 'caiji', 'cj', '采集'], order: 105 });
 commands.register({ id: 'act.notes', title: '打开笔记', group: 'action', keywords: ['note', 'notes', 'biji', 'bj', '笔记'], order: 106 });
 commands.register({ id: 'act.settings', title: '库设置', group: 'action', keywords: ['settings', 'shezhi', 'sz'], order: 110 });
-commands.register({ id: 'layout.rail-mini', title: '切换：左栏图标轨', group: 'layout', keywords: ['rail', 'mini', 'zuoLan', 'zld'], order: 200 });
+commands.register({ id: 'layout.rail', title: '切换：素材库面板', group: 'layout', keywords: ['rail', 'library', 'ziliao', 'zl', '素材库', '左栏'], order: 200 });
 commands.register({ id: 'layout.dock-hidden', title: '切换：收起右栏检查器', group: 'layout', keywords: ['dock', 'shouqi', 'sq'], order: 201 });
 commands.register({ id: 'layout.guide', title: '打开问询助手', group: 'layout', keywords: ['ask', 'guide', 'wenzhu', 'wz'], order: 202 });
 commands.register({ id: 'layout.theme.endfield-light', title: '切换主题：Endfield 现场（默认浅色）', group: 'layout', keywords: ['theme', 'zhuti', 'zt', 'endfield', 'light', '浅色', '主题', '外观'], order: 203 });

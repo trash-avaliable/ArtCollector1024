@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { ResizeHandles, StatusBar, TitleBar, useDebounced } from './components/Chrome';
+import { ResizeHandles, StatusBar, TitleBar, ToolCapsule, useDebounced } from './components/Chrome';
 import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
@@ -12,7 +12,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { TopoBackground } from './components/TopoBackground';
 import { GuideDrawer, GuideFab } from './components/Guide';
 import {
-  commands, dockTabs, parseCollapse, sanitizeDockTab, serializeCollapse, toggleCollapse,
+  commands, dockTabs, isCollapsed, parseCollapse, railSections, sanitizeDockTab, serializeCollapse, toggleCollapse,
   pluginCommandEntries,
   type CollapseState, type CommandEntry
 } from './lib/layout-registry';
@@ -85,9 +85,11 @@ export default function App() {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
 
   /* ---------- 布局重构新增状态：左栏分区/图标轨、右栏 Tab/收起、命令面板、问询抽屉 ---------- */
-  const [railMini, setRailMini] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState<CollapseState>({});
   const [dockHidden, setDockHidden] = useState(false);
+  /** 没有选中图时，用户仍可主动打开检查器看库概览 */
+  const [statsOpen, setStatsOpen] = useState(false);
   const [dockTab, setDockTab] = useState<string>(() => sanitizeDockTab(null, dockTabs));
   const [cmdOpen, setCmdOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -173,7 +175,6 @@ export default function App() {
       if (prefs?.railCats?.length) setRailCats(prefs.railCats);
       else setRailCats(info.tree.map(([c]) => c));
       // 布局偏好：图标轨 / 分区折叠 / dock 收起 / 激活 Tab（key 跟 railViews 同族，存 config.json prefs）
-      setRailMini(!!prefs?.railMini);
       setRailCollapsed(parseCollapse(prefs?.railCollapsed));
       setDockHidden(!!prefs?.dockHidden);
       setDockTab(sanitizeDockTab(prefs?.dockTab, dockTabs));
@@ -273,7 +274,9 @@ export default function App() {
         if (guideOpen) { setGuideOpen(false); return; }
         if (capture) { setCapture(false); return; }   // 采集面板关闭时自己会顺带取消运行中的任务
         if (activeNoteId) { setActiveNoteId(null); setNoteAssets([]); return; } // 笔记视图也是一层
+        if (railOpen) { setRailOpen(false); return; }                          // 素材库滑出面板
         if (selectedIds.size) { setSelectedIds(new Set()); setLastId(null); return; }
+        if (statsOpen) { setStatsOpen(false); return; }                        // 库概览面板
         setLightboxId(null); setClip(null);
         setConfirmDel(null); setConfirmPurge(null); setConfirmCat(null); setConfirmWs(null); setConfirmNote(null); setSettings(false);
         setWsFilter(null); // 画板视图也是一层过滤：Esc 逐层退出
@@ -292,7 +295,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen, capture, activeNoteId]);
+  }, [selectedIds, items, view, category, sub, prefsFull, cmdOpen, guideOpen, capture, activeNoteId, railOpen, statsOpen]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => { e.preventDefault(); };
@@ -559,21 +562,25 @@ export default function App() {
   const gotoView = (v: View) => { setView(v); setCategory(null); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); };
   const gotoCategory = (c: string | null) => { setCategory(c); setSub(null); setSim(null); setColorFilter(null); setWsFilter(null); clearSel(); };
 
+  /* 画布优先：从面板里点了导航就收回面板，让图墙重新吃满 */
+  useEffect(() => { setRailOpen(false); }, [view, category, sub, wsFilter, activeNoteId]);
+
   /* ---------- 布局偏好写穿 prefs（StrictMode 下副作用不进 setState updater） ---------- */
-  const toggleRailMini = () => {
-    const n = !railMini;
-    setRailMini(n);
-    window.api.lib.setPrefs({ railMini: n } as Partial<Prefs>);
+  /* 画布优先：素材库是滑出面板，默认收起，靠悬浮工具胶囊唤起 */
+  const toggleRail = () => setRailOpen(o => !o);
+  const closeRail = () => setRailOpen(false);
+  const openSection = (id: string) => {
+    setRailOpen(true);
+    const def = railSections.list().find(s => s.id === id);
+    if (def && isCollapsed(railCollapsed, def)) toggleSection(id);
+    requestAnimationFrame(() => {
+      document.querySelector(`.railwrap [data-sec="${id}"]`)?.scrollIntoView({ block: 'start' });
+    });
   };
   const toggleSection = (id: string) => {
     const n = toggleCollapse(railCollapsed, id);
     setRailCollapsed(n);
     window.api.lib.setPrefs({ railCollapsed: serializeCollapse(n) } as Partial<Prefs>);
-  };
-  const toggleDockHidden = () => {
-    const n = !dockHidden;
-    setDockHidden(n);
-    window.api.lib.setPrefs({ dockHidden: n } as Partial<Prefs>);
   };
   const pickDockTab = (id: string) => {
     setDockTab(id);
@@ -822,6 +829,25 @@ export default function App() {
   };
 
   const selected = items.find(i => i.id === selectedIds.values().next().value) || null;
+  /** 检查器浮层可见性：有选中或用户主动看库概览，且没被手动收起 */
+  const inspectorVisible = !dockHidden && (!!selected || statsOpen);
+  /* 标题栏 / 命令面板共用的检查器开关：开则浮层滑出，关则画布吃满 */
+  const toggleDockHidden = () => {
+    if (inspectorVisible) {
+      setStatsOpen(false);
+      setDockHidden(true);
+      window.api.lib.setPrefs({ dockHidden: true } as Partial<Prefs>);
+      return;
+    }
+    setDockHidden(false);
+    if (!selected) setStatsOpen(true);
+    window.api.lib.setPrefs({ dockHidden: false } as Partial<Prefs>);
+  };
+  const openInspector = () => {
+    setDockHidden(false);
+    if (!selected) setStatsOpen(true);
+    window.api.lib.setPrefs({ dockHidden: false } as Partial<Prefs>);
+  };
   const lightboxPool = activeNoteId ? noteAssets : items;
   const lightboxItem = lightboxPool.find(i => i.id === lightboxId) || null;
   const cats = tree.map(([c]) => c);
@@ -875,7 +901,7 @@ export default function App() {
     'act.capture': () => setCapture(true),
     'act.notes': () => pickNote(notes[0]?.id || null),
     'act.settings': () => setSettings(true),
-    'layout.rail-mini': toggleRailMini,
+    'layout.rail': toggleRail,
     'layout.dock-hidden': toggleDockHidden,
     'layout.guide': () => setGuideOpen(true)
   };
@@ -929,21 +955,30 @@ export default function App() {
       data-ark-depth="complex"
       data-density={prefsFull.ui.density}
       data-reduce={prefsFull.ui.reducedMotion ? '1' : '0'}
-      data-dockhide={dockHidden ? '1' : '0'}
+      data-dockhide={inspectorVisible ? '0' : '1'}
     >
       <TitleBar
         crumb={crumb}
         maximized={maximized}
         onSettings={() => setSettings(true)}
-        dockHidden={dockHidden}
+        dockHidden={!inspectorVisible}
         onToggleDock={toggleDockHidden}
       />
       <div
         className="app"
-        data-dock={selected ? 'open' : 'idle'}
-        data-rail={railMini ? 'mini' : 'full'}
-        data-dockhide={dockHidden ? '1' : '0'}
+        data-rail={railOpen ? 'open' : 'closed'}
+        data-dock={inspectorVisible ? 'open' : 'closed'}
       >
+        <ToolCapsule
+          open={railOpen}
+          active={activeNoteId ? 'notes' : wsFilter ? 'boards' : category ? 'categories' : 'views'}
+          onToggle={toggleRail}
+          onSection={openSection}
+          onCommand={() => setCmdOpen(true)}
+          onSettings={() => setSettings(true)}
+        />
+        <div className={'veil-panel' + (railOpen ? ' on' : '')} onClick={closeRail} aria-hidden="true" />
+        <div className={'railwrap' + (railOpen ? ' open' : '')}>
         <Rail
           view={view}
           setView={v => gotoView(v)}
@@ -978,11 +1013,11 @@ export default function App() {
           onRenameNote={(id, title) => patchNote(id, { title })}
           onDeleteNote={id => setConfirmNote(notes.find(n => n.id === id) || null)}
           onPinNote={pinNote}
-          railMini={railMini}
-          onToggleRailMini={toggleRailMini}
+          onClose={closeRail}
           sectionCollapsed={railCollapsed}
           onToggleSection={toggleSection}
         />
+        </div>
 
         <main className="stage">
           <TopoBackground />
@@ -1039,8 +1074,8 @@ export default function App() {
                     onSelect={onSelect}
                     onOpen={setLightboxId}
                     onDragOut={id => window.api.lib.dragOut(id)}
-                    onDragStart={setDraggingId}
-                    onDragEnd={() => { setDraggingId(null); setDropCat(null); }}
+                    onDragStart={id => { setDraggingId(id); setRailOpen(true); }}
+                    onDragEnd={() => { setDraggingId(null); setDropCat(null); setRailOpen(false); }}
                     onBoxSelect={onBoxSelect}
                   />
                 )}
@@ -1111,7 +1146,16 @@ export default function App() {
           onUnlinkNote={unlinkNotePair}
           onCreateNoteForAsset={createNoteForAsset}
           onOpenNote={pickNote}
+          open={inspectorVisible}
+          onClose={toggleDockHidden}
         />
+        {!inspectorVisible && (
+          <button className="inspector-tab" onClick={openInspector} title="打开检查器（库概览）" aria-label="打开检查器">
+            <span className="it-l">INSPECTOR</span>
+            <b>{stats.total}</b>
+            <span className="it-c">ITEMS</span>
+          </button>
+        )}
       </div>
 
       <StatusBar root={root} total={stats.total} busy={busy} />

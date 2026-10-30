@@ -276,13 +276,13 @@ test('RTM-S4: 交互回归冒烟（导入 → 占位 → 按下即拖 native dra
   console.log('[smoke] 截图目录:', OUT);
 });
 
-/* ================= 布局重构冒烟：Section 注册制 / 图标轨 / dock 收起 / Ctrl+K / 问询抽屉 ================= */
+/* ================= 布局冒烟：Section 注册制 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉 ================= */
 
 const OUT2 = path.join(ROOT, '.rc-layout-out');
 const LIB2 = path.join(OUT2, 'lib');
 const IMG2 = path.join(OUT2, 'img');
 
-test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认态 / 图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
+test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
   killApp();
   parkCursor();   // 上一个用例的真鼠标拖拽可能把光标留在屏幕中央（命令面板悬停选中会被干扰）
   fs.rmSync(OUT2, { recursive: true, force: true });
@@ -313,86 +313,95 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认�
   const userdataOf = (n) => appdataOf(n);
   fs.mkdirSync(appdataOf('shared'), { recursive: true });
 
-  // 阶段 A：导入 → 默认态截图（左栏三 Section、dock 脊柱、问询 FAB 都在）。
-  // Tab 栏只在意选中时出现：选中后读一把，再 Esc 清选回到脊柱态再截图。
+  // 阶段 A：导入 → 画布优先默认态截图（素材库收起、悬浮工具胶囊、检查器入口签在位）
+  // 选中后检查器浮层滑出；Esc 清选 → 浮层收回，只剩入口签。
   const jsA = `(async()=>{
     const r = await window.api.lib.importPaths({ paths: [${JSON.stringify(IMG2)}] });
     await new Promise(r2 => setTimeout(r2, 200));
     document.querySelector('.card').click();
-    await new Promise(r2 => setTimeout(r2, 250));
+    await new Promise(r2 => setTimeout(r2, 320));
     const tabs = [...document.querySelectorAll('.docktab')].map(t => t.textContent);
+    const dockOpen = document.querySelector('.dock').classList.contains('open');
+    const stageW = Math.round(document.querySelector('.stage').getBoundingClientRect().width);
+    const viewW = document.documentElement.clientWidth;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    await new Promise(r2 => setTimeout(r2, 250));
+    await new Promise(r2 => setTimeout(r2, 350));
     return {
       added: r.added,
       secs: [...document.querySelectorAll('.rsec')].map(s => s.dataset.sec),
       tabs,
-      spine: !!document.querySelector('.dock.idle'),
+      dockOpen,
+      stageW,
+      viewW,
+      capsule: document.querySelectorAll('.capsule .cap-btn').length,
+      railClosed: !document.querySelector('.railwrap').classList.contains('open'),
+      inspectorTab: !!document.querySelector('.inspector-tab'),
       fab: !!document.querySelector('.guide-fab'),
       cards: document.querySelectorAll('.card').length
     };
   })()`;
   const a = await runElectron({ js: jsA, shot: 'layout-01-default.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('shared'), extraEnv: envOf('shared') });
   assert.equal(a.jsResult.added, specs.length, '全部图片导入成功');
-  assert.deepEqual(a.jsResult.secs, ['views', 'categories', 'boards', 'notes'], '左栏四个默认 Section 按 order 渲染（RTM-S24 笔记分区就位）');
+  assert.deepEqual(a.jsResult.secs, ['views', 'categories', 'boards', 'notes'], '素材库四个默认 Section 按 order 渲染（RTM-S24 笔记分区就位）');
   assert.deepEqual(a.jsResult.tabs, ['INSPECTOR检查器', 'NOTES笔记'], '选中图片后右栏出现检查器 + 笔记两个 Tab');
-  assert.ok(a.jsResult.spine, 'Esc 清选后 dock 回到 56px 脊柱态');
+  assert.ok(a.jsResult.dockOpen, '选中即亮出检查器浮层');
+  assert.ok(a.jsResult.railClosed, '默认画布优先：素材库浮层收起');
+  assert.ok(a.jsResult.capsule >= 7, '悬浮工具胶囊常驻（实测 ' + a.jsResult.capsule + ' 个按钮）');
+  assert.ok(a.jsResult.inspectorTab, 'Esc 清选后检查器收回，右缘只剩入口签');
   assert.ok(a.jsResult.fab, '问询 FAB 存在');
   assert.equal(a.jsResult.cards, specs.length, '瀑布流卡片挂载');
+  assert.ok(Math.abs(a.jsResult.stageW - a.jsResult.viewW) <= 1, `stage 吃满窗口（${a.jsResult.stageW}/${a.jsResult.viewW}）`);
 
-  // 阶段 B：左栏折叠成 56px 图标轨（点 .railfold），分区入口图标齐全
+  // 阶段 B：点胶囊 LIB 钮 → 素材库浮层滑出（遮罩 + 胶囊让位 + 分区内容可见）
   const jsB = `(async()=>{
-    document.querySelector('.railfold').click();
-    await new Promise(r => setTimeout(r, 400));
-    const rail = document.querySelector('.rail');
+    document.querySelector('.capsule .cap-lib').click();
+    await new Promise(r => setTimeout(r, 450));
+    const wrap = document.querySelector('.railwrap');
     const app = document.querySelector('.app');
+    const firstNav = document.querySelector('.railbody .navitem');
     return {
-      mini: rail.classList.contains('mini'),
-      railw: app.dataset.rail,
-      icons: document.querySelectorAll('.railicon').length,
-      bodyGone: document.querySelectorAll('.railbody .navitem').length === 0,
-      foldBtnInHead: !!document.querySelector('.railhead .railfold')
+      open: wrap.classList.contains('open'),
+      railState: app.dataset.rail,
+      visibility: firstNav ? getComputedStyle(firstNav).visibility : 'none',
+      capsuleAway: document.querySelector('.capsule').classList.contains('away'),
+      navItems: document.querySelectorAll('.railbody .navitem').length,
+      veilOn: document.querySelector('.veil-panel').classList.contains('on')
     };
   })()`;
-  const b = await runElectron({ js: jsB, shot: 'layout-02-rail-mini.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b'), extraEnv: envOf('b') });
-  assert.ok(b.jsResult.mini, 'rail 挂上 .mini');
-  assert.equal(b.jsResult.railw, 'mini', 'app 网格切到 56px 图标轨');
-  assert.equal(b.jsResult.icons, 4, '四个分区各一个图标入口（含 RTM-S24 笔记）');
-  assert.ok(b.jsResult.bodyGone, '全宽内容体已隐藏');
-  assert.ok(b.jsResult.foldBtnInHead, '头部保留展开按钮（图标轨态仍可一键展开）');
+  const b = await runElectron({ js: jsB, shot: 'layout-02-rail-open.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b'), extraEnv: envOf('b') });
+  assert.ok(b.jsResult.open, 'railwrap 挂上 .open');
+  assert.equal(b.jsResult.railState, 'open', 'app 状态切到素材库浮层');
+  assert.equal(b.jsResult.visibility, 'visible', '分区内容可见');
+  assert.equal(b.jsResult.navItems, 5, '视图分区五条导航（含回收站）');
+  assert.ok(b.jsResult.capsuleAway, '浮层打开时胶囊让位');
+  assert.ok(b.jsResult.veilOn, '画布遮罩生效（点空白可关）');
 
-  // 阶段 C：dock 一键收起（标题栏切换钮），stage 吃满剩余宽度
+  // 阶段 C：检查器浮层开关（选中亮出 / × 收起 / 入口签再打开），画布宽度全程不变
   const jsC = `(async()=>{
-    // 脊柱态（未选中）收起：+56px 即验证收起机制（选中自动亮出由阶段 A 的 Tab 断言覆盖）
-    const btn = document.querySelector('.tb-dock');
-    if (!btn) return { error: '标题栏 dock 切换钮缺失' };
-    const app = document.querySelector('.app');
     const stage = document.querySelector('.stage');
-    const before = Math.round(stage.getBoundingClientRect().width);
-    btn.click();
-    await new Promise(r => setTimeout(r, 400));
+    const w0 = Math.round(stage.getBoundingClientRect().width);
+    document.querySelector('.card').click();
+    await new Promise(r => setTimeout(r, 350));
     const dock = document.querySelector('.dock');
-    const dbgSel = !!document.querySelector('.card.sel');
-    const dbgCards = document.querySelectorAll('.card').length;
-    const cols = getComputedStyle(app).gridTemplateColumns.trim().split(/\\s+/).length;
-    return {
-      hidden: app.dataset.dockhide === '1',
-      rawHide: app.dataset.dockhide,
-      dbgSel,
-      dbgCards,
-      display: dock ? getComputedStyle(dock).display : 'gone',
-      cols,
-      before,
-      after: Math.round(stage.getBoundingClientRect().width)
-    };
+    const openAfterSelect = dock.classList.contains('open');
+    const w1 = Math.round(stage.getBoundingClientRect().width);
+    document.querySelector('.dockclose').click();
+    await new Promise(r => setTimeout(r, 420));
+    const closedAfterX = !dock.classList.contains('open');
+    const tab = document.querySelector('.inspector-tab');
+    if (tab) tab.click();
+    await new Promise(r => setTimeout(r, 420));
+    const openAfterTab = dock.classList.contains('open');
+    const w2 = Math.round(stage.getBoundingClientRect().width);
+    return { w0, w1, w2, openAfterSelect, closedAfterX, openAfterTab, tab: !!tab };
   })()`;
-  const c = await runElectron({ js: jsC, shot: 'layout-03-dock-hidden.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('c'), extraEnv: envOf('c') });
-  assert.ok(!c.jsResult.error, 'dock 切换钮存在: ' + JSON.stringify(c.jsResult));
-  assert.ok(c.jsResult.hidden, 'data-dockhide=1 → ' + JSON.stringify(c.jsResult));
-  assert.ok(c.jsResult.display === 'none' || c.jsResult.display === 'gone', 'dock 视觉移除');
-  assert.equal(c.jsResult.cols, 2, '网格塌成两列（stage 吃满）');
-  // 收起收益取决于此前 dock 态：完整展开 +360，脊柱态 +56——两种都算「stage 拿回空间」
-  assert.ok(c.jsResult.after > c.jsResult.before + 40, `stage 变宽（${c.jsResult.before} → ${c.jsResult.after}px）`);
+  const c = await runElectron({ js: jsC, shot: 'layout-03-inspector.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('c'), extraEnv: envOf('c') });
+  assert.ok(c.jsResult.openAfterSelect, '选中图片 → 检查器浮层滑出');
+  assert.ok(c.jsResult.closedAfterX, '× 收起检查器');
+  assert.ok(c.jsResult.tab, '收起后出现右缘入口签');
+  assert.ok(c.jsResult.openAfterTab, '入口签可再次打开浮层（库概览）');
+  assert.equal(c.jsResult.w1, c.jsResult.w0, '浮层不挤压画布（选中前后同宽）');
+  assert.equal(c.jsResult.w2, c.jsResult.w0, '浮层收起/再开画布仍同宽（画布优先）');
 
   // 阶段 D：Ctrl+K 命令面板（静态注册 + 动态分类），↑↓/Enter 由单测覆盖数据层
   const jsD = `(async()=>{
@@ -441,7 +450,7 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认�
   assert.ok(e.jsResult.fabOn, 'FAB 同步点亮');
 
   // 5 张截图齐活
-  for (const s of ['layout-01-default.png', 'layout-02-rail-mini.png', 'layout-03-dock-hidden.png', 'layout-04-cmdk.png', 'layout-05-guide.png']) {
+  for (const s of ['layout-01-default.png', 'layout-02-rail-open.png', 'layout-03-inspector.png', 'layout-04-cmdk.png', 'layout-05-guide.png']) {
     const p = path.join(OUT2, s);
     assert.ok(fs.existsSync(p) && fs.statSync(p).size > 1000, '截图存在且非空: ' + p);
   }

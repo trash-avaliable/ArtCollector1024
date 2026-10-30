@@ -150,8 +150,6 @@ export type PluginRunResult = { ok: boolean; error?: string; timedOut?: boolean 
 
 export type Prefs = {
   railViews?: View[]; railCats?: string[];
-  /** 左栏整体折叠成 56px 图标轨 */
-  railMini?: boolean;
   /** 左栏分区折叠状态（Section id → 是否折叠），经 layout-registry 的 normalizeCollapse 洗过再写 */
   railCollapsed?: Record<string, boolean>;
   /** 右栏激活的 Dock Tab id（经 sanitizeDockTab 校验） */

@@ -1,6 +1,6 @@
 # RefCollector 需求跟踪矩阵（RTM）v1
 
-> 生成时间：2026-10-30 19:13 UTC · 命令：`npm run rtm`（scripts/rtm.mjs，扫描 electron/ src/ 实现与 tests/ 测试名，只读文件）
+> 生成时间：2026-10-30 20:27 UTC · 命令：`npm run rtm`（scripts/rtm.mjs，扫描 electron/ src/ 实现与 tests/ 测试名，只读文件）
 > 状态推导：✅ done = 有命中且有匹配测试 · 🟡 partial = 有命中无测试 · 🔴 todo = 零命中；测试是否真正通过以 `npm test` 为准。
 > 种子维护：需求/验收标准/关键词在 `scripts/rtm-reqs.json`（agent 维护）；本文件自动生成，勿手改。
 
@@ -8,35 +8,35 @@
 
 | ID | 需求 | 基线 | 推导 | 实现位置 | 关联测试 |
 |---|---|---|---|---|---|
-| RTM-S1 | 无边框窗口 / 自绘标题栏 / 8 向缩放 / 状态记忆 | done | ✅ done | electron/main.js:115 · src/styles.css:149 · electron/preload.js:21（共 24 行命中） | tests/smoke-ui.test.mjs ×1 |
+| RTM-S1 | 无边框窗口 / 自绘标题栏 / 8 向缩放 / 状态记忆 | done | ✅ done | electron/main.js:115 · src/styles.css:149 · electron/preload.js:21（共 23 行命中） | tests/smoke-ui.test.mjs ×1 |
 | RTM-S2 | 拖入粘贴导入 + 自动分类（规则层） | done | ✅ done | src/components/Overlays.tsx:164 · src/components/Settings.tsx:76 · src/lib/guide-kb.ts:281（共 62 行命中） | tests/guide-engine.test.mjs ×1 · tests/smoke-ui.test.mjs ×1 |
 | RTM-S3 | 交错瀑布流 + 拼音/首字母/中文子串搜索 | done | ✅ done | electron/tools.js:1307 · src/components/Notes.tsx:12 · src/components/Stage.tsx:47（共 44 行命中） | tests/category.test.mjs ×1 · tests/notes.test.mjs ×2 |
-| RTM-S4 | 拖出到 PS/SAI（native drag） | done | ✅ done | electron/main.js:818 · src/App.tsx:1041 · src/components/Dock.tsx:124（共 25 行命中） | tests/smoke-ui.test.mjs ×1 |
-| RTM-S5 | 托盘常驻 + 全局热键 | done | ✅ done | electron/main.js:361 · src/components/Chrome.tsx:41 · src/components/Settings.tsx:74（共 63 行命中） | tests/settings.test.mjs ×1 |
+| RTM-S4 | 拖出到 PS/SAI（native drag） | done | ✅ done | electron/main.js:818 · src/App.tsx:1076 · src/components/Dock.tsx:124（共 25 行命中） | tests/smoke-ui.test.mjs ×1 |
+| RTM-S5 | 托盘常驻 + 全局热键 | done | ✅ done | electron/main.js:361 · src/components/Chrome.tsx:42 · src/components/Settings.tsx:74（共 63 行命中） | tests/settings.test.mjs ×1 |
 | RTM-S6 | 内容寻址去重 + 缩略图 | done | ✅ done | electron/crawler.js:15 · electron/tools.js:581 · electron/htmlparse.js:60（共 29 行命中） | tests/crawler-e2e.test.mjs ×1 · tests/guide-engine.test.mjs ×1 · tests/theme.test.mjs ×1 |
 | RTM-S7 | 回收站（软删/恢复/彻底删） | done | ✅ done | electron/db.js:132 · electron/main.js:313 · electron/tools.js:312（共 118 行命中） | tests/guide-engine.test.mjs ×1 · tests/knn.test.mjs ×1 · tests/notes.test.mjs ×2 · tests/plugins.test.mjs ×1 · tests/tags.test.mjs ×1 · tests/topo-gpu.test.mjs ×1 |
-| RTM-S8 | 子分类 | done | ✅ done | electron/clip.js:119 · electron/main.js:730 · src/App.tsx:764（共 77 行命中） | tests/category.test.mjs ×4 |
+| RTM-S8 | 子分类 | done | ✅ done | electron/clip.js:119 · electron/main.js:730 · src/App.tsx:771（共 77 行命中） | tests/category.test.mjs ×4 |
 | RTM-S9 | 橡皮筋框选 | done | ✅ done | src/components/Settings.tsx:197 · src/components/Stage.tsx:177 · src/lib/boxhit.ts:2（共 26 行命中） | tests/boxhit.test.mjs ×6 |
-| RTM-S10 | 相似图（主色 Lab + 宽高比加权；种子原写 dHash+主色） | done | ✅ done | electron/clip.js:328 · electron/tools.js:1012 · src/App.tsx:845（共 40 行命中） | tests/guide-engine.test.mjs ×1 |
+| RTM-S10 | 相似图（主色 Lab + 宽高比加权；种子原写 dHash+主色） | done | ✅ done | electron/clip.js:328 · electron/tools.js:1012 · src/App.tsx:871（共 40 行命中） | tests/guide-engine.test.mjs ×1 |
 | RTM-S11 | 置顶参考窗（透明度 / 鼠标穿透） | done | ✅ done | electron/main.js:178 · electron/preload.js:101 · electron/tools.js:1206（共 40 行命中） | tests/guide-engine.test.mjs ×1 · tests/notes.test.mjs ×3 |
 | RTM-S12 | 白边裁剪（自动 + 批量 + 灯箱裁剪显示） | done | ✅ done | electron/db.js:136 · electron/main.js:533 · electron/store.js:43（共 71 行命中） | tests/aspect.test.mjs ×5 · tests/guide-engine.test.mjs ×1 |
 | RTM-S13 | 浏览器扩展桥接（127.0.0.1 + token） | done | ✅ done | electron/bridge.js:4 · electron/main.js:393 · electron/store.js:168（共 20 行命中） | tests/bridge.test.mjs ×5 |
-| RTM-S14 | 扫描接入（换目录 + 文件夹=分类） | done | ✅ done | src/App.tsx:746 · src/components/Settings.tsx:75 · src/lib/guide-kb.ts:272（共 14 行命中） | tests/scan.test.mjs ×4 |
-| RTM-S15 | 画板 / 工作集（多对多 + 拖拽 + 批量） | done | ✅ done | electron/db.js:6 · electron/main.js:525 · electron/store.js:245（共 99 行命中） | tests/guide-engine.test.mjs ×1 |
-| RTM-S16 | 动图播放（GIF/WebP/APNG 检测 + 角标 + 预览播放） | done | ✅ done | electron/db.js:6 · electron/tools.js:11 · src/App.tsx:454（共 67 行命中） | tests/guide-engine.test.mjs ×1 · tests/notes.test.mjs ×1 |
+| RTM-S14 | 扫描接入（换目录 + 文件夹=分类） | done | ✅ done | src/App.tsx:753 · src/components/Settings.tsx:75 · src/lib/guide-kb.ts:272（共 14 行命中） | tests/scan.test.mjs ×4 |
+| RTM-S15 | 画板 / 工作集（多对多 + 拖拽 + 批量） | done | ✅ done | electron/db.js:6 · electron/main.js:525 · electron/store.js:245（共 100 行命中） | tests/guide-engine.test.mjs ×1 |
+| RTM-S16 | 动图播放（GIF/WebP/APNG 检测 + 角标 + 预览播放） | done | ✅ done | electron/db.js:6 · electron/tools.js:11 · src/App.tsx:457（共 67 行命中） | tests/guide-engine.test.mjs ×1 · tests/notes.test.mjs ×1 |
 | RTM-S17 | 直送 PS 当前画布（COM + 剪贴板降级） | done | ✅ done | electron/main.js:12 · electron/preload.js:67 · electron/ps-bridge.js:29（共 40 行命中） | tests/ps-bridge.test.mjs ×8 · tests/smoke-ui.test.mjs ×1 |
-| RTM-S18 | 全页设置（分类导航 / 搜索 / 快捷键自定义 / 合规参数） | done | ✅ done | electron/crawler.js:11 · electron/main.js:145 · electron/plugins.js:24（共 233 行命中） | tests/guide-engine.test.mjs ×2 · tests/layout.test.mjs ×2 · tests/plugins.test.mjs ×2 · tests/settings.test.mjs ×3 · tests/theme.test.mjs ×4 |
+| RTM-S18 | 全页设置（分类导航 / 搜索 / 快捷键自定义 / 合规参数） | done | ✅ done | electron/crawler.js:11 · electron/main.js:145 · electron/plugins.js:24（共 232 行命中） | tests/guide-engine.test.mjs ×2 · tests/layout.test.mjs ×2 · tests/plugins.test.mjs ×2 · tests/settings.test.mjs ×3 · tests/theme.test.mjs ×4 |
 | RTM-S19 | 全局错误日志（IPC / 渲染进程 / 崩溃） | done | ✅ done | electron/main.js:29 · electron/logger.js:48 · electron/plugins.js:18（共 23 行命中） | tests/guide-engine.test.mjs ×1 |
 | RTM-S20 | CLIP 零样本分类（基准 ≥90% 门禁） | done | ✅ done | electron/clip.js:3 · electron/db.js:146 · electron/main.js:613（共 78 行命中） | tests/clip-engine.test.mjs ×4 · tests/clip-preprocess.test.mjs ×1 · tests/clip-tokenizer.test.mjs ×2 · tests/guide-engine.test.mjs ×1 · tests/knn.test.mjs ×22 |
-| RTM-S21 | 布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架） | done | ✅ done | src/components/Rail.tsx:2 · src/lib/layout-registry.ts:65 · src/App.tsx:15（共 81 行命中） | tests/layout.test.mjs ×2 · tests/smoke-ui.test.mjs ×1 · tests/theme.test.mjs ×1 |
+| RTM-S21 | 布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架） | done | ✅ done | src/App.tsx:15 · src/components/Chrome.tsx:2 · src/components/Rail.tsx:2（共 87 行命中） | tests/layout.test.mjs ×2 · tests/smoke-ui.test.mjs ×1 · tests/theme.test.mjs ×1 |
 | RTM-S22 | 网页采集 agent（NL 命令 + 反问 + robots 合规护栏） | todo | ✅ done | electron/crawler.js:3 · electron/htmlparse.js:5 · electron/intent.js:6（共 131 行命中） | tests/intent.test.mjs ×6 |
 | RTM-S23 | 问询引导 agent（检索式问答） | todo | ✅ done | src/components/Guide.tsx:3 · src/lib/guide-engine.ts:3 · src/lib/guide-kb.ts:372（共 3 行命中） | tests/guide-engine.test.mjs ×1 · tests/guide-kb.test.mjs ×1 |
-| RTM-S24 | 笔记系统（笔记 + 关联图片 + 拼音搜索） | todo | ✅ done | electron/tools.js:1263 · src/App.tsx:48 · src/components/Dock.tsx:64（共 51 行命中） | tests/notes.test.mjs ×20 |
+| RTM-S24 | 笔记系统（笔记 + 关联图片 + 拼音搜索） | todo | ✅ done | electron/tools.js:1263 · src/App.tsx:48 · src/components/Dock.tsx:64（共 52 行命中） | tests/notes.test.mjs ×20 |
 | RTM-S25 | 多标签工作集（tags 数据层已有，无界面） | todo | ✅ done | electron/db.js:48 · electron/tools.js:428 · electron/main.js:644（共 18 行命中） | tests/tags.test.mjs ×5 |
 | RTM-S26 | CLIP 语义搜索（以文搜图） | todo | 🔴 todo | — | — |
 | RTM-S27 | 云同步 | todo | 🔴 todo | — | — |
 | RTM-S28 | 应用内插件系统（沙盒化，安全第一） | todo | ✅ done | electron/main.js:16 · electron/plugins.js:466 · src/lib/layout-registry.ts:149（共 46 行命中） | tests/plugins.test.mjs ×21 |
-| RTM-S29 | 五主题系统 + 等高线背景双层降级（GPU topolines / SVG 兜底） | done | ✅ done | src/components/TopoBackground.tsx:2 · src/lib/topo-gpu.ts:2 · src/styles.css:1569（共 80 行命中） | tests/theme.test.mjs ×23 · tests/topo-gpu.test.mjs ×15 |
+| RTM-S29 | 五主题系统 + 等高线背景双层降级（GPU topolines / SVG 兜底） | done | ✅ done | src/components/TopoBackground.tsx:2 · src/lib/topo-gpu.ts:2 · src/styles.css:1586（共 80 行命中） | tests/theme.test.mjs ×23 · tests/topo-gpu.test.mjs ×15 |
 
 ## 统计
 
@@ -59,7 +59,7 @@
 - 基线：done · 推导：✅ done
 - 实现位置：`electron/main.js:115`、`src/styles.css:149`、`electron/preload.js:21`
 - 关联测试（1 条）：
-  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认态 / 图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）
+  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉（5 张截图）
 - 验收标准：
   1. 窗口无系统边框（frame: false），标题栏自绘、可拖拽，含最小化/最大化/关闭
   2. 8 个方向（n/s/e/w/nw/ne/sw/se）均可拖边缩放，且有最小尺寸限制
@@ -93,7 +93,7 @@
 ### RTM-S4 拖出到 PS/SAI（native drag）
 - 来源：主干 v0.1（MVP）
 - 基线：done · 推导：✅ done
-- 实现位置：`electron/main.js:818`、`src/App.tsx:1041`、`src/components/Dock.tsx:124`
+- 实现位置：`electron/main.js:818`、`src/App.tsx:1076`、`src/components/Dock.tsx:124`
 - 关联测试（1 条）：
   - `tests/smoke-ui.test.mjs` — RTM-S4: 交互回归冒烟（导入 → 占位 → 按下即拖 native drag 链路 → 直送PS降级 → 复制）
 - 验收标准：
@@ -104,7 +104,7 @@
 ### RTM-S5 托盘常驻 + 全局热键
 - 来源：主干 v0.1（MVP）
 - 基线：done · 推导：✅ done
-- 实现位置：`electron/main.js:361`、`src/components/Chrome.tsx:41`、`src/components/Settings.tsx:74`
+- 实现位置：`electron/main.js:361`、`src/components/Chrome.tsx:42`、`src/components/Settings.tsx:74`
 - 关联测试（1 条）：
   - `tests/settings.test.mjs` — event: 键盘事件转 accelerator
 - 验收标准：
@@ -144,7 +144,7 @@
 ### RTM-S8 子分类
 - 来源：主干 v0.2（P1 批次）
 - 基线：done · 推导：✅ done
-- 实现位置：`electron/clip.js:119`、`electron/main.js:730`、`src/App.tsx:764`
+- 实现位置：`electron/clip.js:119`、`electron/main.js:730`、`src/App.tsx:771`
 - 关联测试（4 条）：
   - `tests/category.test.mjs` — RTM-S8: setCategory 带子分类——list 按 subcategory 过滤命中
   - `tests/category.test.mjs` — RTM-S8: 子分类写入 cat_py 拼音列（搜索链路依赖）
@@ -174,7 +174,7 @@
 ### RTM-S10 相似图（主色 Lab + 宽高比加权；种子原写 dHash+主色）
 - 来源：主干 v0.2（P1 批次）
 - 基线：done · 推导：✅ done
-- 实现位置：`electron/clip.js:328`、`electron/tools.js:1012`、`src/App.tsx:845`
+- 实现位置：`electron/clip.js:328`、`electron/tools.js:1012`、`src/App.tsx:871`
 - 关联测试（1 条）：
   - `tests/guide-engine.test.mjs` — 问句命中：搜索 / 相似图 / 取色 / 色板
 - 验收标准：
@@ -231,7 +231,7 @@
 ### RTM-S14 扫描接入（换目录 + 文件夹=分类）
 - 来源：主干 v0.3
 - 基线：done · 推导：✅ done
-- 实现位置：`src/App.tsx:746`、`src/components/Settings.tsx:75`、`src/lib/guide-kb.ts:272`
+- 实现位置：`src/App.tsx:753`、`src/components/Settings.tsx:75`、`src/lib/guide-kb.ts:272`
 - 关联测试（4 条）：
   - `tests/scan.test.mjs` — RTM-S14: scanRoot——groups 按一级文件夹聚合，subs 记二级，loose 记散图，total 汇总
   - `tests/scan.test.mjs` — RTM-S14: files/thumbs/隐藏目录被 SKIP，不会成为 groups 也不会计入 total
@@ -256,7 +256,7 @@
 ### RTM-S16 动图播放（GIF/WebP/APNG 检测 + 角标 + 预览播放）
 - 来源：主干 v0.3
 - 基线：done · 推导：✅ done
-- 实现位置：`electron/db.js:6`、`electron/tools.js:11`、`src/App.tsx:454`
+- 实现位置：`electron/db.js:6`、`electron/tools.js:11`、`src/App.tsx:457`
 - 关联测试（2 条）：
   - `tests/guide-engine.test.mjs` — 问句命中：日志 / 扩展安装 / 动图
   - `tests/notes.test.mjs` — RTM-S24: noteDelete 只删笔记不动图，删不存在的返回 ok:false
@@ -327,11 +327,11 @@
 ### RTM-S21 布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架）
 - 来源：feat/relayout（合并 fc54d3d）
 - 基线：done · 推导：✅ done
-- 实现位置：`src/components/Rail.tsx:2`、`src/lib/layout-registry.ts:65`、`src/App.tsx:15`
+- 实现位置：`src/App.tsx:15`、`src/components/Chrome.tsx:2`、`src/components/Rail.tsx:2`
 - 关联测试（4 条）：
   - `tests/layout.test.mjs` — railSections：默认分区齐全且字段完整（views/categories/boards/notes）
   - `tests/layout.test.mjs` — dockTabs：检查器是第一个 Tab，笔记是第二个，sanitizeDockTab 守卫未知 id
-  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 默认态 / 图标轨 / dock 收起 / 命令面板 / 问询抽屉（5 张截图）
+  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉（5 张截图）
   - `tests/theme.test.mjs` — RTM-S29: 命令面板注册了 5 条「切换主题」命令（id 与 App 侧 handler 对齐）
 - 验收标准：
   1. 左栏分区走 Section 注册制（layout-registry：注册/排序/id 查询/折叠状态持久化），图标轨 + 可展开分区
@@ -445,7 +445,7 @@
 ### RTM-S29 五主题系统 + 等高线背景双层降级（GPU topolines / SVG 兜底）
 - 来源：任务规格（agent 2026-10-31）：参考 topolines.idlee.xyz 的 GPU 噪声等高线，替换原 4 层 SVG 同心椭圆；旧实现保留为无 WebGL / RC_NOGPU 兜底
 - 基线：done · 推导：✅ done
-- 实现位置：`src/components/TopoBackground.tsx:2`、`src/lib/topo-gpu.ts:2`、`src/styles.css:1569`
+- 实现位置：`src/components/TopoBackground.tsx:2`、`src/lib/topo-gpu.ts:2`、`src/styles.css:1586`
 - 关联测试（38 条）：
   - `tests/theme.test.mjs` — RTM-S29: 五套主题的变量名集合完全一致（换 data-theme 即换整套）
   - `tests/theme.test.mjs` — RTM-S29: data-theme 契约——:root 默认浅色 + 四个家族块 + ide-dark 已移除

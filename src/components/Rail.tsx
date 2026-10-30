@@ -17,9 +17,6 @@ const Ico = ({ d, size = 15 }: { d: string; size?: number }) => (
     strokeLinecap="square" strokeLinejoin="miter"><path d={d} /></svg>
 );
 
-const CHEV_L = 'M14 6l-6 6 6 6';
-const CHEV_R = 'M10 6l6 6-6 6';
-
 type DragRef = { kind: 'view' | 'cat'; key: string };
 
 export function Rail({
@@ -28,7 +25,7 @@ export function Rail({
   onAddCat, onRenameCat, onDropCat,
   worksets, wsFilter, onPickWorkset, onAddWorkset, onRenameWorkset, onDeleteWorkset, onDropOnWorkset,
   notes, activeNoteId, onPickNote, onAddNote, onRenameNote, onDeleteNote, onPinNote,
-  railMini, onToggleRailMini, sectionCollapsed, onToggleSection
+  onClose, sectionCollapsed, onToggleSection
 }: {
   view: View; setView: (v: View) => void; stats: Stats; tree: Tree;
   counts: Record<string, number>; category: string | null; setCategory: (c: string | null) => void;
@@ -54,9 +51,8 @@ export function Rail({
   onRenameNote: (id: string, title: string) => void;
   onDeleteNote: (id: string) => void;
   onPinNote: (id: string) => void;
-  /** 左栏整体是否折叠成 56px 图标轨（prefs.railMini） */
-  railMini: boolean;
-  onToggleRailMini: () => void;
+  /** 素材库滑出面板的关闭按钮（点遮罩 / Esc 也走同一出口） */
+  onClose: () => void;
   /** 各分区折叠状态（prefs.railCollapsed，经 normalizeCollapse 洗过） */
   sectionCollapsed: CollapseState;
   onToggleSection: (id: string) => void;
@@ -447,43 +443,14 @@ export function Rail({
     return null;
   };
 
-  /* ---------- 图标轨态：点图标 = 展开左栏 + 展开对应分区 ---------- */
-  const activeSection = activeNoteId ? 'notes' : wsFilter ? 'boards' : category ? 'categories' : 'views';
-
   return (
-    <nav className={'rail' + (railMini ? ' mini' : '')} aria-label="素材库导航">
+    <nav className="rail" aria-label="素材库导航">
       <div className="railhead">
-        <button
-          className="railfold"
-          onClick={onToggleRailMini}
-          title={railMini ? '展开左栏' : '收起左栏为图标轨'}
-          aria-label={railMini ? '展开左栏' : '收起左栏为图标轨'}
-        >
-          <Ico d={railMini ? CHEV_R : CHEV_L} size={13} />
-        </button>
-        <span className="microlbl">LIB / 素材库</span>
+        <span className="railttl">LIB / 素材库</span>
+        <button className="railclose" onClick={onClose} title="关闭素材库（Esc）" aria-label="关闭素材库">×</button>
       </div>
 
-      {railMini ? (
-        <div className="railicons">
-          {sections.map(s => (
-            <button
-              key={s.id}
-              className={'railicon' + (activeSection === s.id ? ' on' : '')}
-              title={`${s.en} / ${s.cn}`}
-              aria-label={`展开左栏并定位到${s.cn}`}
-              onClick={() => {
-                onToggleRailMini();
-                if (isCollapsed(sectionCollapsed, s)) onToggleSection(s.id);
-              }}
-            >
-              <Ico d={s.icon} />
-            </button>
-          ))}
-          <div className="icontip">REFCOLLECTOR RAIL</div>
-        </div>
-      ) : (
-        <div className="railbody">
+      <div className="railbody">
           {sections.map(sec => {
             const folded = isCollapsed(sectionCollapsed, sec);
             return (
@@ -513,7 +480,6 @@ export function Rail({
             );
           })}
         </div>
-      )}
     </nav>
   );
 }

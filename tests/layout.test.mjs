@@ -78,7 +78,7 @@ test('commands：默认命令齐全、id 唯一、分组合法', () => {
   assert.equal(ids.size, list.length, '命令 id 不得重复');
   const legal = new Set(['view', 'category', 'board', 'action', 'layout']);
   for (const c of list) assert.ok(legal.has(c.group), `非法分组: ${c.group}`);
-  for (const key of ['view.all', 'view.inbox', 'view.fav', 'view.recent', 'view.trash', 'act.import', 'act.settings', 'layout.rail-mini', 'layout.dock-hidden', 'layout.guide']) {
+  for (const key of ['view.all', 'view.inbox', 'view.fav', 'view.recent', 'view.trash', 'act.import', 'act.settings', 'layout.rail', 'layout.dock-hidden', 'layout.guide']) {
     assert.ok(ids.has(key), `缺少默认命令: ${key}`);
   }
 });
