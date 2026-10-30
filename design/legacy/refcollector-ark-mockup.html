@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ark-theme="ark" data-ark-depth="complex">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RefCollector — Ark / complex 视觉方案</title>
+<link rel="stylesheet" href="refcollector-ark.css">
+</head>
+<body>
+<div class="board">
+
+<div class="contract">
+  <div class="mark"></div>
+  <div>
+    <h1>REFCOLLECT</h1>
+    <div class="sub">参考图收集器 · 视觉契约</div>
+  </div>
+  <div class="axis">
+    <div>FAMILY <b>ARK</b></div>
+    <div>DEPTH <b>COMPLEX / 3</b></div>
+    <div>SHELL <b>BLACK EDGE + CYAN RULE</b></div>
+    <div>INSTRUMENT <b>INDEXED STAGE</b></div>
+  </div>
+  <div class="swatches">
+    <span style="background:#080a0b;border:1px solid #343a3e"></span>
+    <span style="background:#18d1ff"></span>
+    <span style="background:#c8eb21"></span>
+    <span style="background:#f4f6f6"></span>
+  </div>
+</div>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="sq"></div>
+      <div class="nm">REFCOLLECT</div>
+      <div class="cn">参考图收集器</div>
+    </div>
+    <div class="crumb">INDEX / 02 — 素材库</div>
+    <div class="search">
+      <span class="slash">/</span>
+      <input value="shou" spellcheck="false">
+      <span class="kbd">ALT + SPACE</span>
+    </div>
+    <div class="tools">
+      <div class="tool" title="网格视图"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="4.5" height="4.5"/><rect x="8" y="1.5" width="4.5" height="4.5"/><rect x="1.5" y="8" width="4.5" height="4.5"/><rect x="8" y="8" width="4.5" height="4.5"/></svg></div>
+      <div class="tool" title="收件箱"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2.5h10M2 7h10M2 11.5h6"/></svg><span class="dot-badge"></span></div>
+      <div class="tool" title="置顶参考窗"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="8"/><path d="M5 12h4"/></svg></div>
+      <div class="tool" title="导入"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1.5v8M4 6.5l3 3 3-3M2 12.5h10"/></svg></div>
+    </div>
+  </div>
+
+  <nav class="rail">
+    <a class="active" href="#"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="5" height="5" fill="currentColor"/><rect x="9.5" y="1.5" width="5" height="5"/><rect x="1.5" y="9.5" width="5" height="5"/><rect x="9.5" y="9.5" width="5" height="5"/></svg><span class="idx">01</span></a>
+    <a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M4.5 15V7a1.4 1.4 0 012.8 0v1.5M7.3 8.5V5a1.4 1.4 0 012.8 0v3.5M10.1 8.5V6.4a1.4 1.4 0 012.8 0V10c0 3-1.8 5-4.4 5H7"/></svg><span class="idx">02</span></a>
+    <a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 14L10.5 3l2.5 2L4.5 14H2z"/><path d="M2 14l3-.6"/></svg><span class="idx">03</span></a>
+    <a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 010 12z" fill="currentColor" opacity=".35"/></svg><span class="idx">04</span></a>
+    <a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2h7l5 5v7H2z"/><path d="M5 7h6M5 10h4"/></svg><span class="idx">05</span></a>
+    <a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6"/><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15"/></svg><span class="idx">06</span></a>
+    <div class="spacer"></div>
+    <div class="foot"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" stroke="#4e5457" fill="none"/><path d="M3.5 6l2 2 3-4" stroke="#4e5457" fill="none"/></svg></div>
+  </nav>
+
+  <main class="stage">
+    <div class="grid-layer"></div>
+    <div class="stage-head">
+      <div>
+        <div class="eyebrow">REFERENCE LIBRARY / 素材库</div>
+        <div style="display:flex;align-items:flex-end">
+          <div class="num">1284</div>
+          <div class="unit">件素材</div>
+          <div class="chip-state"><i></i>8 待分类</div>
+        </div>
+      </div>
+      <div class="viewmode">
+        <button class="on">网格</button>
+        <button>列表</button>
+      </div>
+    </div>
+    <div class="filters">
+      <span class="on">全部</span>
+      <span>人体结构</span>
+      <span>线条练习</span>
+      <span>色彩与光影</span>
+      <span>美术风格</span>
+      <span>教程与拆解</span>
+      <span>待分类 8</span>
+    </div>
+
+    <div class="wall">
+      <div class="card" style="animation-delay:.04s">
+        <div class="art"><svg viewBox="0 0 240 300"><rect width="240" height="300" fill="#161b1e"/><path d="M78 268V150c0-9 6-15 14-15s14 6 14 15v-26c0-9 6-15 14-15s14 6 14 15v14c0-9 6-15 14-15s14 6 14 15v63c0 40-23 66-58 66H78z" fill="none" stroke="#4d565b" stroke-width="2"/><path d="M106 138v62M134 126v74M162 140v60" stroke="#394246" stroke-width="1.6"/><path d="M56 52h30M56 52v30M184 52h-30M184 52v30" stroke="#18d1ff" stroke-width="1.4" opacity=".55"/><path d="M56 178h18M56 178v-18" stroke="#18d1ff" stroke-width="1.2" opacity=".3"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0142</span><span>1920×1080</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0142</span><span class="cat">手部</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.09s">
+        <div class="art"><svg viewBox="0 0 240 180"><rect width="240" height="180" fill="#12171a"/><path d="M14 156h212M14 140h212M14 124h212M14 108h212M14 92h212M14 76h212M14 60h212M14 44h212M14 28h212" stroke="#394246" stroke-width="1.2"/><path d="M126 8c-16 34-12 86 8 134" stroke="#5b666b" stroke-width="2" fill="none"/><path d="M180 30c-10 22-8 52 4 76" stroke="#3f4a4f" stroke-width="1.6" fill="none"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0197</span><span>1600×1200</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0197</span><span class="cat">排线</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.14s">
+        <div class="art"><svg viewBox="0 0 240 220"><rect width="240" height="220" fill="#141a1d"/><rect x="26" y="24" width="52" height="170" fill="#2b3236"/><rect x="92" y="24" width="52" height="170" fill="#3c4448"/><rect x="158" y="24" width="52" height="170" fill="#232a2d"/><path d="M26 204h184" stroke="#18d1ff" stroke-width="1.4" opacity=".5"/><path d="M26 16h184" stroke="#4a5458" stroke-width="1"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0231</span><span>2048×2048</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0231</span><span class="cat">配色</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.19s">
+        <div class="art"><svg viewBox="0 0 240 160"><rect width="240" height="160" fill="#0f1417"/><rect x="18" y="18" width="60" height="40" fill="#2b3236"/><rect x="88" y="18" width="60" height="40" fill="#222a2d"/><rect x="158" y="18" width="60" height="40" fill="#333b3f"/><path d="M18 70h60M88 70h60M158 70h60" stroke="#4a5458" stroke-width="1"/><rect x="18" y="84" width="130" height="8" fill="#1c2225"/><rect x="18" y="100" width="88" height="8" fill="#1c2225"/><rect x="18" y="122" width="60" height="8" fill="#18d1ff" opacity=".25"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0364</span><span>1280×853</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0364</span><span class="cat">教程</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.24s">
+        <div class="art"><svg viewBox="0 0 240 260"><rect width="240" height="260" fill="#151b1e"/><circle cx="120" cy="130" r="86" fill="none" stroke="#414a4f" stroke-width="1.6"/><circle cx="120" cy="130" r="56" fill="none" stroke="#333c40" stroke-width="1.2"/><path d="M120 24v212M24 130h192" stroke="#232a2e" stroke-width="1.2"/><path d="M84 180l36-84 36 84" fill="none" stroke="#5e696e" stroke-width="2"/><circle cx="120" cy="130" r="3" fill="#18d1ff"/><path d="M186 40l18 0 0 18" stroke="#18d1ff" stroke-width="1" opacity=".4" fill="none"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0512</span><span>3000×3000</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0512</span><span class="cat">构图</span></div>
+      </div>
+
+      <div class="card selected" style="animation-delay:.29s">
+        <div class="art"><svg viewBox="0 0 240 200"><rect width="240" height="200" fill="#181e21"/><path d="M36 180l46-70 38 40 42-86 38 116z" fill="#2a3135"/><path d="M36 180l46-70 38 40 42-86 38 116" fill="none" stroke="#59646a" stroke-width="2"/><circle cx="180" cy="44" r="14" fill="none" stroke="#18d1ff" stroke-width="1.4" opacity=".7"/><path d="M16 16h20M16 16v20M224 16h-20M224 16v20" stroke="#18d1ff" stroke-width="1.2" opacity=".5" fill="none"/></svg></div>
+        <div class="meta"><span class="id">07 / 0628</span><span class="cat">已选 · 结构练习</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.34s">
+        <div class="art"><svg viewBox="0 0 240 190"><rect width="240" height="190" fill="#111719"/><path d="M30 30h180M30 60h180M30 90h180M30 120h180M30 150h180" stroke="#2c3438" stroke-width="1"/><path d="M60 170V20M100 170V20M140 170V20M180 170V20" stroke="#2c3438" stroke-width="1"/><path d="M60 150c30-40 90-40 120-100" stroke="#5b666b" stroke-width="2" fill="none"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0661</span><span>1440×1080</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0661</span><span class="cat">透视</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.39s">
+        <div class="art"><svg viewBox="0 0 240 240"><rect width="240" height="240" fill="#131a1c"/><path d="M120 30c34 0 58 24 58 56 0 34-22 52-30 76-4 14-12 22-28 22s-24-8-28-22c-8-24-30-42-30-76 0-32 24-56 58-56z" fill="none" stroke="#4d565b" stroke-width="2"/><path d="M96 86c8-10 16-14 24-14s16 4 24 14" fill="none" stroke="#394246" stroke-width="1.6"/><circle cx="106" cy="104" r="2" fill="#18d1ff"/><circle cx="134" cy="104" r="2" fill="#18d1ff"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0708</span><span>1200×1600</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0708</span><span class="cat">头部</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.44s">
+        <div class="art"><svg viewBox="0 0 240 170"><rect width="240" height="170" fill="#0f1517"/><path d="M20 150h200" stroke="#2c3438" stroke-width="1"/><rect x="20" y="60" width="40" height="90" fill="#242b2f"/><rect x="70" y="40" width="40" height="110" fill="#2e363a"/><rect x="120" y="74" width="40" height="76" fill="#1e2528"/><rect x="170" y="52" width="40" height="98" fill="#333b3f"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0744</span><span>2560×1440</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0744</span><span class="cat">明暗</span></div>
+      </div>
+
+      <div class="card" style="animation-delay:.49s">
+        <div class="art"><svg viewBox="0 0 240 210"><rect width="240" height="210" fill="#151b1e"/><path d="M40 180l30-60 26 30 30-80 34 110z" fill="#2a3135"/><path d="M40 180l30-60 26 30 30-80 34 110" fill="none" stroke="#59646a" stroke-width="1.8"/><path d="M120 20v20M120 20h20" stroke="#18d1ff" stroke-width="1" opacity=".45" fill="none"/></svg></div>
+        <div class="ov"><div class="top"><span>R-0801</span><span>1920×1080</span></div><div class="bot"><b>DRAG OUT</b><i></i><span>↵</span></div></div>
+        <div class="meta"><span class="id">0801</span><span class="cat">风格</span></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="dossier">
+    <div class="hd"><span class="l">SELECTED / 07</span><span class="r">0628</span></div>
+    <div class="frame"><svg viewBox="0 0 284 170"><rect width="284" height="170" fill="#181e21"/><path d="M34 152l54-82 44 46 50-100 44 136z" fill="#252d31"/><path d="M34 152l54-82 44 46 50-100 44 136" fill="none" stroke="#5a656b" stroke-width="2"/><path d="M12 22h22M12 22v22M272 22h-22M272 22v22" stroke="#18d1ff" stroke-width="1.2" opacity=".55" fill="none"/></svg></div>
+    <h2>峡谷构图 · 三点透视</h2>
+    <div class="path">结构练习 / 构图</div>
+    <div class="rows">
+      <div class="row"><span class="k">SOURCE</span><span class="v">artstation.com</span></div>
+      <div class="row"><span class="k">ADDED</span><span class="v">2026-10-12</span></div>
+      <div class="row"><span class="k">SIZE</span><span class="v">1920 × 1080</span></div>
+      <div class="row"><span class="k">USED</span><span class="v">4 次</span></div>
+    </div>
+    <div class="tags"><span class="on">构图</span><span>透视</span><span>风景</span><span>+</span></div>
+    <div class="actions">
+      <div class="btn-primary"><span class="bar"></span><span class="t">拖入画布 / DRAG OUT</span><span class="k">↵</span></div>
+      <div class="btn-ghost"><span class="t">复制到剪贴板</span><span class="k">C</span></div>
+      <div class="btn-ghost"><span class="t">置顶参考窗</span><span class="k">P</span></div>
+    </div>
+  </aside>
+
+  <div class="statusbar">
+    <span>1284 ITEMS</span><span class="sep">/</span><span>1.8 GB</span><span class="sep">/</span><span>LOCAL ONLY</span>
+    <div class="right"><span class="live"></span><span>本地库已连接</span><span class="sep">/</span><span>ALT+SPACE 唤起 · ? 快捷键</span></div>
+  </div>
+</div>
+
+<div class="strip">
+  <div class="pin">
+    <div class="bar"><span class="t">PIN / 置顶参考窗</span><span class="pct">82%</span></div>
+    <div class="body">
+      <div class="big"><svg viewBox="0 0 260 150"><rect width="260" height="150" fill="#161b1e"/><path d="M30 130l42-56 34 34 38-70 34 92z" fill="#2a3135"/><path d="M30 130l42-56 34 34 38-70 34 92" fill="none" stroke="#5a656b" stroke-width="1.8"/><path d="M10 16h16M10 16v16M250 16h-16M250 16v16" stroke="#18d1ff" stroke-width="1" opacity=".5" fill="none"/></svg></div>
+      <div class="side"><div class="on"></div><div></div><div></div></div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <h3>MOTION / 动效家族 · COMPLEX 级需协调两类以上</h3>
+    <div class="spec-grid">
+      <div class="spec-item"><span class="n">01</span><span class="b">素材墙载入：自下而上裁切揭示，逐张延迟 40ms<em>650ms</em></span></div>
+      <div class="spec-item"><span class="n">02</span><span class="b">悬停：描边转青色 + 遮罩淡入，不出缩放<em>240ms</em></span></div>
+      <div class="spec-item"><span class="n">03</span><span class="b">选中：角标括号由 0 拉伸至 10px，边轨同步亮起<em>240ms</em></span></div>
+      <div class="spec-item"><span class="n">04</span><span class="b">待分类角标：呼吸循环，唯一允许的常驻动效<em>1800ms</em></span></div>
+      <div class="spec-item"><span class="n">05</span><span class="b">拖拽：卡片转为青色描边空框，原位留索引号<em>240ms</em></span></div>
+      <div class="spec-item"><span class="n">06</span><span class="b">入库回执：缩略图沿直线飞入顶部计数，数字滚动<em>650ms</em></span></div>
+    </div>
+    <h3 style="margin-top:14px">GEOMETRY / 几何纪律</h3>
+    <div class="spec-grid">
+      <div class="spec-item"><span class="n">·</span><span class="b">圆角 0，功能性圆角上限 2px；描边恒为 1px</span></div>
+      <div class="spec-item"><span class="n">·</span><span class="b">青色只用于选中、进度、主操作；绿色只用于"已验证/本地"状态</span></div>
+      <div class="spec-item"><span class="n">·</span><span class="b">禁用：霓虹渐变、扫描线、随机六边形、假遥测数字</span></div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

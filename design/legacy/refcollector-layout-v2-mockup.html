@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RefCollector · 布局 v2 示意图</title>
+<link rel="stylesheet" href="refcollector-layout-v2.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- 标题栏：只放品牌 + 面包屑，不再塞长路径 -->
+  <header class="titlebar">
+    <div class="brand"><i class="mark"></i><span class="word">REFCOLLECTOR</span></div>
+    <div class="crumb">库 <span class="sep">/</span> <b>全部素材</b> <span class="sep">/</span> 10 项</div>
+    <div class="wctl"><div>—</div><div>□</div><div class="close">✕</div></div>
+  </header>
+
+  <div class="body">
+
+    <!-- 左栏：视图 + 分类竖排（替代原来的横向 chip 条） -->
+    <nav class="rail">
+      <div class="lbl">VIEW / 视图</div>
+      <div class="navitem on"><i class="ico"></i><span>全部素材</span><i class="cnt">10</i></div>
+      <div class="navitem"><i class="ico"></i><span>待分类</span><i class="alert"></i></div>
+      <div class="navitem"><i class="ico"></i><span>收藏</span><i class="cnt">0</i></div>
+      <div class="navitem"><i class="ico"></i><span>最近浏览</span><i class="cnt">6</i></div>
+
+      <div class="div"></div>
+      <div class="lbl">CATEGORY / 分类</div>
+      <div class="cats">
+        <div class="cat"><span>人体结构</span><i class="cnt">2</i></div>
+        <div class="cat on"><span>线条练习</span><i class="cnt">1</i></div>
+        <div class="cat"><span>动态与透视</span><i class="cnt">1</i></div>
+        <div class="cat"><span>色彩光影</span><i class="cnt">1</i></div>
+        <div class="cat"><span>美术风格</span><i class="cnt">1</i></div>
+        <div class="cat"><span>教程与拆解</span><i class="cnt">1</i></div>
+        <div class="cat"><span>服饰与道具</span><i class="cnt">1</i></div>
+        <div class="cat"><span>场景与背景</span><i class="cnt">1</i></div>
+        <div class="cat"><span>色彩板</span><i class="cnt">1</i></div>
+        <div class="cat"><span>情绪板</span><i class="cnt">0</i></div>
+      </div>
+
+      <div class="foot">
+        <div class="footbtn"><span>▤</span> 打开库目录</div>
+      </div>
+    </nav>
+
+    <!-- 中栏 -->
+    <main class="main">
+      <div class="toolbar">
+        <div class="search">
+          <i class="mag"></i>
+          <input placeholder="搜索名字 / 拼音 / 首字母，例：shoubu、sb、手部" />
+          <span class="kbd">ALT+SPACE</span>
+        </div>
+        <div class="tb-actions">
+          <div class="sortbox">最近添加 <i class="car"></i></div>
+          <div class="import">导入参考图 <span class="k">CTRL+O</span></div>
+        </div>
+      </div>
+
+      <div class="gridwrap">
+        <div class="grid">
+          <article class="card">
+            <div class="frame"><img src="refcollector/demo-library/thumbs/39138fdc972b00b6dcbaf3eeff67c09e5680d5075b59279db1ddcfdd7e675d5c.jpg" alt="" /></div>
+            <div class="info"><div class="nm"><i class="idx">#001</i><span class="fn">线稿-排线练习.png</span></div><span class="tag">线条练习</span></div>
+          </article>
+
+          <article class="card sel">
+            <div class="frame"><img src="refcollector/demo-library/thumbs/536644a7005c8fb36f3a6cb0dd6fc18901f16d8989c0a103efc42da22f0098aa.jpg" alt="" /></div>
+            <div class="info"><div class="nm"><i class="idx">#002</i><span class="fn">hand_study_01.png</span></div><span class="tag">人体结构</span></div>
+          </article>
+
+          <article class="card">
+            <div class="frame"><img src="refcollector/demo-library/thumbs/56d4296e397ec092c32f076796fc38a9ef6f6b9ef706f34618a5cf1f51a723e0.jpg" alt="" /></div>
+            <div class="info"><div class="nm"><i class="idx">#003</i><span class="fn">cloth-fold-study.png</span></div><span class="tag">服饰道具</span></div>
+          </article>
+
+          <article class="card">
+            <div class="frame"><img src="refcollector/demo-library/thumbs/595b08e7a40b4947157b678416fad0511d4ab99bb834e3576f2216e52ee851b7.jpg" alt="" /></div>
+            <div class="info"><div class="nm"><i class="idx">#004</i><span class="fn">tutorial-step-01.png</span></div><span class="tag">教程拆解</span></div>
+          </article>
+
+          <article class="card">
+            <div class="frame"><img src="refcollector/demo-library/thumbs/5b0905fd8b8f4a07b2233700eb89e755205f757eeaaae6e933e0a85c299c5de5.jpg" alt="" /></div>
+            <div class="info"><div class="nm"><i class="idx">#005</i><span class="fn">background-city.png</span></div><span class="tag">场景背景</span></div>
+          </article>
+
+          <article class="card">
+            <div class="frame"><img src="refcollector/demo-library/thumbs/79215238a57d0cec5765fd919548da1a7de782fb95bd93f620223db4bd300214.jpg" alt="" /></div>
+            <div class="info"><div class="nm"><i class="idx">#006</i><span class="fn">anime_style_ref.png</span></div><span class="tag">美术风格</span></div>
+          </article>
+        </div>
+      </div>
+    </main>
+
+    <!-- 右栏：检查器，分区 + 底部固定主操作 -->
+    <aside class="dock">
+      <div class="dhead">
+        <div class="t">INSPECTOR / <b>检查器</b></div>
+        <div class="col">⟩</div>
+      </div>
+
+      <div class="dbody">
+        <div class="pv"><img src="refcollector/demo-library/thumbs/536644a7005c8fb36f3a6cb0dd6fc18901f16d8989c0a103efc42da22f0098aa.jpg" alt="" /></div>
+        <div class="pvname">hand_study_01.png</div>
+        <div class="pvsub">#002 · 2026-10-25 14:08</div>
+
+        <div class="meta">
+          <div class="cell"><div class="k">SIZE</div><div class="v">420 × 540</div></div>
+          <div class="cell"><div class="k">FILE</div><div class="v">318 KB</div></div>
+          <div class="cell"><div class="k">FORMAT</div><div class="v">PNG</div></div>
+          <div class="cell"><div class="k">SOURCE</div><div class="v">本地导入</div></div>
+        </div>
+
+        <div class="sect">
+          <div class="sh"><span>CLASSIFICATION</span><em>可改判</em></div>
+          <div class="catchip"><i></i> 人体结构 / 手部</div>
+        </div>
+
+        <div class="sect">
+          <div class="sh"><span>ACTIONS</span></div>
+          <div class="acts">
+            <button>收藏</button>
+            <button>复制图片</button>
+            <button>在文件夹中显示</button>
+            <button class="danger">移出库</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dfoot">
+        <div class="dragout">拖入画布 <span class="k">DRAG TO PS / SAI</span></div>
+        <div class="hint">按住此处拖到 Photoshop 或 SAI 直接插入原图</div>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer class="status">
+    <div class="live"><i class="dot"></i> 本地库已连接</div>
+    <div class="path">D:\download\wbAI\save\test\refcollector\demo-library</div>
+    <div class="keys"><span><b>ALT+SPACE</b> 唤起</span><span><b>双击</b> 大图</span><span><b>DEL</b> 移出</span></div>
+  </footer>
+
+</div>
+</body>
+</html>
