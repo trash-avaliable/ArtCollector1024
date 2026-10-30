@@ -1566,6 +1566,14 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 /* 窗口失焦暂停：组件监听 visibilitychange 后挂 .paused */
 .topo.paused svg { animation-play-state: paused; }
 
+/* ---------- RTM-S29 GPU 等高线（topolines 库，WebGL 噪声等高线） ----------
+   - .topo-gpu 是 <Topolines> 的挂载宿主：引擎自管 canvas（cssText 铺满宿主）、rAF、
+     visibilitychange 停启与 prefers-reduced-motion 静帧，CSS 只管定位与零交互
+   - 颜色/密度/线宽/透明度/漂速由组件随主题下发（lib/topo-gpu.ts），不吃 CSS token
+   - 旧 SVG 路径（.topo）保留为无 WebGL / RC_NOGPU 兜底；reduce 双保险（下方 media
+     与 data-reduce 的 display:none）只作用于 SVG 路径——GPU 路径在 reduce 下显示静帧 */
+.topo-gpu { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+
 /* ---------- RTM-S29：家族入场编排（窗口打开时错峰；endfield 保持现状不编排） ----------
    ark=裁切擦入（transform 模拟裁切感，不用 clip-path，守住只动 transform/opacity 红线）
    exa=轨道淡入上浮（带过冲回落）、popucom=弹性回弹（back-out 缓动）、corporate=快速擦除 */

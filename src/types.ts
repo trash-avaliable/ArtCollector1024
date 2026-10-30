@@ -177,6 +177,10 @@ export const EMPTY_STATS: Stats = { total: 0, inbox: 0, fav: 0, week: 0, size: 0
 declare global {
   interface Window {
     api: {
+      env: {
+        /** RC_NOGPU=1（main 经 additionalArguments 下发，preload 同步读 argv）：等高线背景走 SVG 兜底 */
+        noGpu(): boolean;
+      };
       win: {
         minimize(): Promise<void>;
         toggleMax(): Promise<boolean>;

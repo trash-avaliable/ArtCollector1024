@@ -8,6 +8,11 @@ const on = (channel, cb) => {
 };
 
 contextBridge.exposeInMainWorld('api', {
+  /* RTM-S29：主进程经 additionalArguments 下发的运行旗标（同步读，不走 IPC） */
+  env: {
+    /** RC_NOGPU=1 → 主进程已禁硬件加速，等高线背景直接走 SVG 兜底 */
+    noGpu: () => process.argv.includes('--rc-nogpu=1')
+  },
   win: {
     minimize: () => ipcRenderer.invoke('win:minimize'),
     toggleMax: () => ipcRenderer.invoke('win:toggle-max'),
