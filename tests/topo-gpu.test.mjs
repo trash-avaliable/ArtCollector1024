@@ -66,7 +66,7 @@ test('RTM-S29: topo-gpu 依赖——topolines 进 dependencies（^0.3，MIT 零�
   assert.match(PKG.dependencies.topolines, /\^0\.3\.\d+/);
   assert.ok(!PKG.devDependencies?.topolines, '不得放 devDependencies');
   assert.ok(!PKG.devDependencies?.react, '不得动 react 依赖位置');
-  assert.equal(PKG.version, '0.9.0', '版本号不得变动');
+  assert.match(PKG.version, /^\d+\.\d+\.\d+$/, '版本号必须是语义化版本（发版会变，不钉死具体值）');
   assert.ok(
     fs.existsSync(new URL('../node_modules/topolines/dist/react.js', import.meta.url)),
     'node_modules/topolines 的 react 入口缺失（先 npm i topolines）'
