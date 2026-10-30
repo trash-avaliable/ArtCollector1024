@@ -230,10 +230,10 @@ test('RTM: renderMarkdown 快照（固定 fixture + 固定时间）', () => {
   assert.equal(md, expected);
 });
 
-test('RTM: 真实种子文件共 28 条、id 连续且结构合法', () => {
+test('RTM: 真实种子文件共 29 条、id 连续且结构合法', () => {
   const data = JSON.parse(fs.readFileSync(REQS_FILE, 'utf8'));
   validateReqs(data);
-  assert.equal(data.requirements.length, 28);
+  assert.equal(data.requirements.length, 29);
   data.requirements.forEach((r, i) => assert.equal(r.id, `RTM-S${i + 1}`));
 });
 
