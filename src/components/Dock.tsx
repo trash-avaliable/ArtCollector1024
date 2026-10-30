@@ -204,6 +204,24 @@ export function Dock({
     setTagDraft('');
   };
 
+  /* RTM-S29：Tab 滑动指示条——单个 .tabink 元素量出激活 Tab 的位置，transform/width 过渡滑过去。
+     hook 必须在「空闲态 early return」之前：空闲态 tabsRef 不渲染，measure 空转即可。 */
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [ink, setInk] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const bar = tabsRef.current;
+      const el = bar?.querySelector<HTMLElement>('.docktab.on');
+      if (!bar || !el) return;
+      const pr = bar.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      setInk({ x: r.left - pr.left, w: r.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [dockTab]);
+
   /* 空闲态：不占版面，只留一条竖直脊柱报库体量（必须放在所有 hook 之后） */
   if (!selected) {
     return (
@@ -452,23 +470,6 @@ export function Dock({
   };
 
   const tabs = dockTabs.list();
-
-  /* RTM-S29：Tab 滑动指示条——单个 .tabink 元素量出激活 Tab 的位置，transform/width 过渡滑过去 */
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const [ink, setInk] = useState<{ x: number; w: number } | null>(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const bar = tabsRef.current;
-      const el = bar?.querySelector<HTMLElement>('.docktab.on');
-      if (!bar || !el) return;
-      const pr = bar.getBoundingClientRect();
-      const r = el.getBoundingClientRect();
-      setInk({ x: r.left - pr.left, w: r.width });
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [dockTab, tabs.length]);
 
   return (
     <aside className="dock">
