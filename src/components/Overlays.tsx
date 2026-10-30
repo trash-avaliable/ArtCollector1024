@@ -117,16 +117,28 @@ export function Lightbox({
 }
 
 export function ToastBar({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+  /* RTM-S29：滑出动画——先挂 .out 播 200ms toastOut，再真正卸载 */
+  const [out, setOut] = useState(false);
+  const outTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const close = () => {
+    if (out) return;
+    setOut(true);
+    outTimer.current = setTimeout(onClose, 210);
+  };
+  useEffect(() => { setOut(false); }, [toast]);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(onClose, 5000);
+    const t = setTimeout(close, 5000);
     return () => clearTimeout(t);
+    // close 依赖 out 状态：只按 toast/onClose 重置 5s 计时，out 翻转仅在退出窗口内发生
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast, onClose]);
+  useEffect(() => () => { if (outTimer.current) clearTimeout(outTimer.current); }, []);
   if (!toast) return null;
   return (
-    <div className="toast">
+    <div className={'toast' + (out ? ' out' : '')}>
       <span className="msg">{toast.msg}</span>
-      {toast.undo && <button onClick={() => { toast.undo!(); onClose(); }}>撤销</button>}
+      {toast.undo && <button onClick={() => { toast.undo!(); close(); }}>撤销</button>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  eventToAccelerator, describeAccelerator, normalizeAccelerator, fullPrefs, PREF_DEFAULTS
+  eventToAccelerator, describeAccelerator, normalizeAccelerator, fullPrefs, PREF_DEFAULTS, THEMES
 } from '../lib/settings-core';
 import type { Prefs, PluginInfo } from '../types';
 
@@ -215,17 +215,14 @@ export function Settings({
           <div className="setrow col">
             <span>主题（即时生效，存 prefs.ui.theme）</span>
             <div className="themecards" role="radiogroup" aria-label="主题">
-              {([
-                ['endfield-light', 'Endfield 浅色', '素色纸面 · 墨黑铭牌 · 信号黄点缀，工业直角（默认）'],
-                ['ide-dark', 'IDE 深色', '深底亮字 · 明度分层 · 细边框，参考 AI IDE']
-              ] as const).map(([id, nm, dsc]) => (
-                <button key={id} role="radio" aria-checked={prefs.ui.theme === id}
-                  className={'themecard' + (prefs.ui.theme === id ? ' on' : '')}
-                  onClick={() => set('ui', { theme: id })}>
-                  <span className={'tp ' + (id === 'ide-dark' ? 'dp' : 'lp')} aria-hidden="true"><i /><i /><i /></span>
-                  <span className="tnm">{nm}</span>
-                  <span className="tdsc">{dsc}</span>
-                  {prefs.ui.theme === id && <span className="tuse">使用中</span>}
+              {THEMES.map(t => (
+                <button key={t.id} role="radio" aria-checked={prefs.ui.theme === t.id}
+                  className={'themecard' + (prefs.ui.theme === t.id ? ' on' : '')}
+                  onClick={() => set('ui', { theme: t.id })}>
+                  <span className={'tp ' + t.thumb} aria-hidden="true"><i /><i /><i /></span>
+                  <span className="tnm">{t.name}</span>
+                  <span className="tdsc">{t.desc}</span>
+                  {prefs.ui.theme === t.id && <span className="tuse">使用中</span>}
                 </button>
               ))}
             </div>

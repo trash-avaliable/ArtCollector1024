@@ -453,9 +453,27 @@ export function Dock({
 
   const tabs = dockTabs.list();
 
+  /* RTM-S29：Tab 滑动指示条——单个 .tabink 元素量出激活 Tab 的位置，transform/width 过渡滑过去 */
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [ink, setInk] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const bar = tabsRef.current;
+      const el = bar?.querySelector<HTMLElement>('.docktab.on');
+      if (!bar || !el) return;
+      const pr = bar.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      setInk({ x: r.left - pr.left, w: r.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [dockTab, tabs.length]);
+
   return (
     <aside className="dock">
-      <div className="docktabs" role="tablist" aria-label="右栏面板">
+      <div className="docktabs" role="tablist" aria-label="右栏面板" ref={tabsRef}>
+        {ink && <i className="tabink" style={{ transform: `translateX(${ink.x}px)`, width: ink.w }} aria-hidden="true" />}
         {tabs.map(t => (
           <button
             key={t.id}

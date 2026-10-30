@@ -276,6 +276,11 @@ export const Card = React.memo(function Card({
 }) {
   // 占位比例：it.w/it.h 已是裁白边后的内容尺寸（缩略图同比例），解码前预留高度用
   const ratio = cardAspectRatio(it);
+  /* RTM-S29：缩略图加载淡入——解码完成后加 .ld（缓存命中时 onLoad 可能不触发，ref 里补） */
+  const imgRef = (el: HTMLImageElement | null) => {
+    if (el?.complete) el.classList.add('ld');
+  };
+  const imgLoaded = (e: React.SyntheticEvent<HTMLImageElement>) => e.currentTarget.classList.add('ld');
   return (
     <article
       className={'card' + (animate ? '' : ' still') + (selected ? ' sel' : '') + (dragging ? ' dragging' : '') + (it.deletedAt ? ' gone' : '')}
@@ -292,7 +297,8 @@ export const Card = React.memo(function Card({
       onDoubleClick={() => onOpen(it.id)}
     >
       <div className="frame" style={{ aspectRatio: ratio }}>
-        <img src={thumbUrl(it)} alt={it.name} loading="lazy" decoding="async" draggable={false} />
+        <img ref={imgRef} src={thumbUrl(it)} alt={it.name} loading="lazy" decoding="async" draggable={false}
+          onLoad={imgLoaded} onError={imgLoaded} />
         {animLabel(it) && <span className="animchip">{animLabel(it)}</span>}
         <div
           className="pull"
