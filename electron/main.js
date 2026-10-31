@@ -121,7 +121,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       spellcheck: false,
       /* RTM-S29：RC_NOGPU=1 下发到渲染层（preload 从 process.argv 读）——
          等高线背景据此直接走 SVG 兜底，不赌 WebGL 探测是否被 SwiftShader 蒙混过关 */
@@ -163,7 +163,12 @@ function createWindow() {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    /* 外链只放行 http(s)：sourceUrl 来自采集元数据（扩展 / 网页），属外部输入，
+       file:、自定义协议或 javascript: 不能在点击时交给系统直接打开 */
+    let proto = '';
+    try { proto = new URL(url).protocol; } catch { }
+    if (proto === 'http:' || proto === 'https:') shell.openExternal(url);
+    else console.warn('[security] 已拦截非 http(s) 外链:', String(url).slice(0, 200));
     return { action: 'deny' };
   });
 }
@@ -210,7 +215,7 @@ function openPin(id) {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
   pinWin.setAlwaysOnTop(true, 'screen-saver');
