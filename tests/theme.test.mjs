@@ -412,7 +412,9 @@ test('RTM-S29: topo 组件——挂在 stage、aria-hidden、z-index 在内容�
   assert.match(APP_TSX, /<main className="stage">\s*\n\s*<TopoBackground \/>/, 'TopoBackground 必须是 stage 第一个子节点');
   assert.match(TOPO_TSX, /aria-hidden="true"/, '装饰背景必须 aria-hidden');
   assert.match(CSS, /\.topo \{ position: absolute; inset: 0; z-index: 0/, 'z-index 0 位于内容之下');
-  assert.match(CSS, /\.stage > \.toolbar, \.stage > \.gridwrap, \.stage > \.noteview \{ position: relative; z-index: 1/, '内容层显式抬升');
+  assert.match(CSS, /\.stage > \.gridwrap, \.stage > \.noteview \{ position: relative; z-index: 1/, '内容层显式抬升');
+  // 画布优先壳层：工具栏是悬浮层（absolute + 高 z-index），不参与内容层抬升
+  assert.match(CSS, /\.toolbar \{[^}]*position:\s*absolute[^}]*z-index:\s*\d+/, '悬浮工具栏自带层序');
 });
 
 test('RTM-S29: topo 双保险静止——prefers-reduced-motion 与设置「减少动效」都压掉', () => {

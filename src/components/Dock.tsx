@@ -124,7 +124,7 @@ export function Dock({
   onFav, onCopy, onReveal, onRemove, onCategory, onSubCategory, onDragOut, onRename,
   onTags, onColorClick, onSimilar, onPin, onAddToWorkset, onRemoveFromWorkset, onSendToPs,
   noteRev, onUnlinkNote, onCreateNoteForAsset, onOpenNote,
-  dockTab, onTab
+  dockTab, onTab, open, onClose
 }: {
   stats: Stats; count: number; label: string; selected: Item | null; cats: string[]; tree: Tree; busy: string;
   editSignal: number; worksets: Workset[];
@@ -147,6 +147,9 @@ export function Dock({
   /** 当前激活的 Dock Tab（prefs.dockTab，已过 sanitizeDockTab 校验） */
   dockTab: string;
   onTab: (id: string) => void;
+  /** 浮层是否滑出；收起时整块右栏平移到画布外 */
+  open: boolean;
+  onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -221,17 +224,6 @@ export function Dock({
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [dockTab]);
-
-  /* 空闲态：不占版面，只留一条竖直脊柱报库体量（必须放在所有 hook 之后） */
-  if (!selected) {
-    return (
-      <aside className="dock idle" title="点一张图，这里显示来源、标签、色板与操作">
-        <div className="idlelabel">INSPECTOR</div>
-        <div className="idletip">点一张图看详情</div>
-        <div className="idlespine"><b>{count}</b> ITEMS</div>
-      </aside>
-    );
-  }
 
   /* EXTENSION-DOCK-TAB: 右栏面板按注册制渲染成 Tab。
      检查器全部内容（预览 / BOARDS / 直送 PS 按钮组）在第一个 Tab，笔记 Tab（NOTES）
@@ -472,7 +464,7 @@ export function Dock({
   const tabs = dockTabs.list();
 
   return (
-    <aside className="dock">
+    <aside className={'dock' + (open ? ' open' : '')}>
       <div className="docktabs" role="tablist" aria-label="右栏面板" ref={tabsRef}>
         {ink && <i className="tabink" style={{ transform: `translateX(${ink.x}px)`, width: ink.w }} aria-hidden="true" />}
         {tabs.map(t => (
@@ -489,6 +481,7 @@ export function Dock({
           </button>
         ))}
         <span className="tabcnt">{count}</span>
+        <button className="dockclose" onClick={onClose} title="收起检查器（Esc）" aria-label="收起检查器">×</button>
       </div>
       {tabPane(dockTab)}
     </aside>
