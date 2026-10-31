@@ -386,7 +386,9 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布�
       veilOn: document.querySelector('.veil-panel').classList.contains('on')
     };
     document.querySelector('.act-btn[data-act-sec="categories"]').click();
-    await new Promise(r => setTimeout(r, 320));
+    /* 先等分区真正切过去，再等宽度过渡（200ms）走完；固定 sleep 在机器繁忙时会量到旧宽度 */
+    for (let i = 0; i < 40 && wrap.dataset.sec !== 'categories'; i++) await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 260));
     out.bodySec2 = document.querySelector('.railbody .rsec')?.dataset.sec;
     out.tabOn2 = document.querySelector('.railsw-btn.on')?.dataset.secTab;
     out.addAction = document.querySelector('.railbody .railadd-lg')?.textContent || '';

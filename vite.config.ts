@@ -14,8 +14,8 @@ const CSP = [
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
-  "form-action 'none'",
-  "frame-ancestors 'none'"
+  "form-action 'none'"
+  // 别加 frame-ancestors：媒体只能经 HTTP 头下发，写进 meta 会被忽略并在控制台报错
 ].join('; ');
 
 export default defineConfig({

@@ -24,7 +24,7 @@ npm run dist                 # 打包 NSIS（= vite build && electron-builder，
 6. **NSIS 打包**：报 winCodeSign 符号链接错误时用 `-c.win.signAndEditExecutable=false`；`/D=` 路径必须反斜杠且放最后。
 7. **拖拽冒烟**：DoDragDrop 会阻塞无鼠标的自动化——已用 `RC_NODRAG=1` 钩子绕开，勿删。
 8. **验收截图别传 `RC_NOGPU=1`**：那是 CI 降级路径（topolines GPU → 旧 SVG 兜底），拍出来不是真实观感；验收用 GPU 模式，并切到空视图（回收站/待分类）才能整屏看到等高线地形。
-9. **安全基线（0.9.3 起，tests/security.test.mjs 守着）**：两个 BrowserWindow 都是 `sandbox: true` + `contextIsolation: true` + `nodeIntegration: false`；`setWindowOpenHandler` 只放行 http(s) 再 `openExternal`（采集来源 URL 属外部输入）；CSP 由 `vite.config.ts` 只在 `build` 时注入 `dist/index.html`（dev 的内联引导脚本与严格 CSP 冲突）——改这三处先跑 `node --test tests/security.test.mjs`。
+9. **安全基线（0.9.3 起，tests/security.test.mjs 守着）**：两个 BrowserWindow 都是 `sandbox: true` + `contextIsolation: true` + `nodeIntegration: false`；`setWindowOpenHandler` 只放行 http(s) 再 `openExternal`（采集来源 URL 属外部输入）；CSP 由 `vite.config.ts` 只在 `build` 时注入 `dist/index.html`（dev 的内联引导脚本与严格 CSP 冲突）——改这三处先跑 `node --test tests/security.test.mjs`。CSP 走 `<meta>`，**别加 `frame-ancestors`**：它只能经 HTTP 头下发，写进 meta 会被忽略且每次启动刷一条 ERROR 日志。
 
 ## 架构地图
 - `electron/`：main.js（IPC 路由 + 单实例 + 空白自愈）、store.js（库门面 + 图像解码注入）、tools.js（工具层，IPC/MCP/AI 共用）、db.js（schema v9 迁移带存在性守卫）、clip.js（CLIP 引擎 + kNN 改判学习）、crawler.js/intent.js（采集 agent 合规护栏）、scan.js、bridge.js（浏览器扩展桥）、ps-bridge.js（直送 PS COM）、plugins.js（插件沙盒宿主）、logger.js（全局错误日志）
