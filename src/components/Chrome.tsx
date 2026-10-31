@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { railSections } from '../lib/layout-registry';
 
 export function TitleBar({ crumb, maximized, onSettings, dockHidden, onToggleDock }: {
   crumb: string; maximized: boolean; onSettings: () => void;
@@ -116,44 +115,48 @@ export function useFocusSearch(cb: () => void) {
 }
 
 /**
- * 悬浮工具胶囊：画布优先壳层的常驻入口。
- * 素材库面板收起时贴在画布左缘（悬浮），展开时让位给面板（整体左移淡出）。
+ * 左侧 activity bar：画布优先壳层的唯一常驻入口。
+ * 上：LIB 总开关；中：四个分区各一枚（点击开对应窄浮层，再点收起）；
+ * 下：命令面板。设置只有标题栏一个家。
  */
-export function ToolCapsule({ open, active, onToggle, onSection, onCommand, onSettings }: {
-  open: boolean; active: string; onToggle: () => void;
-  onSection: (id: string) => void; onCommand: () => void; onSettings: () => void;
+export function ActivityBar({ open, activeSection, sections, onToggleLib, onPickSection, onCommand }: {
+  open: boolean;
+  activeSection: string;
+  sections: { id: string; en: string; cn: string; icon: string }[];
+  onToggleLib: () => void;
+  onPickSection: (id: string) => void;
+  onCommand: () => void;
 }) {
+  const activeCn = sections.find(s => s.id === activeSection)?.cn || '素材库';
   return (
-    <div className={'capsule' + (open ? ' away' : '')} role="toolbar" aria-label="快捷工具">
+    <div className="actbar" role="toolbar" aria-label="素材库与分区">
       <button
-        className={'cap-btn cap-lib' + (open ? ' on' : '')}
-        onClick={onToggle}
-        title={open ? '收起素材库' : '展开素材库'}
+        className={'act-btn act-lib' + (open ? ' on' : '')}
+        onClick={onToggleLib}
+        title={open ? `收起素材库（当前「${activeCn}」）` : `展开素材库（上次停在「${activeCn}」）`}
         aria-label="素材库面板"
       >
-        <svg width="15" height="15" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" /><path d="M9 4v16" /></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" /><path d="M9 4v16" /></svg>
+        <i className="act-tag">LIB</i>
       </button>
-      <i className="cap-sep" />
-      {railSections.list().map(s => (
+      <i className="act-sep" />
+      {sections.map(sec => (
         <button
-          key={s.id}
-          className={'cap-btn' + (active === s.id ? ' on' : '')}
-          onClick={() => onSection(s.id)}
-          title={`${s.en} / ${s.cn}`}
-          aria-label={`${s.cn}面板`}
+          key={sec.id}
+          className={'act-btn' + (open && sec.id === activeSection ? ' on' : '')}
+          data-act-sec={sec.id}
+          onClick={() => onPickSection(sec.id)}
+          title={`${sec.en} / ${sec.cn}`}
+          aria-label={sec.cn}
+          aria-pressed={open && sec.id === activeSection}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24"><path d={s.icon} /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" strokeWidth="1.4"
+            strokeLinecap="square" strokeLinejoin="miter"><path d={sec.icon} /></svg>
         </button>
       ))}
-      <i className="cap-sep" />
-      <button className="cap-btn" onClick={onCommand} title="命令面板（Ctrl+K）" aria-label="命令面板">
-        <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M13 17h6" /></svg>
-      </button>
-      <button className="cap-btn" onClick={onSettings} title="库设置" aria-label="库设置">
-        <svg width="15" height="15" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="3.2" />
-          <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7" />
-        </svg>
+      <i className="act-sep" />
+      <button className="act-btn" onClick={onCommand} title="命令面板（Ctrl+K）" aria-label="命令面板">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth="1.4"><path d="M5 7l5 5-5 5M13 17h6" /></svg>
       </button>
     </div>
   );

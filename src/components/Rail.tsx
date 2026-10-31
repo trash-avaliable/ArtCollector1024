@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { isCollapsed, railSections, type CollapseState, type RailSectionDef } from '../lib/layout-registry';
+import { railSections } from '../lib/layout-registry';
 import type { Note, Stats, Tree, View, Workset } from '../types';
 
 const RAIL_MIME = 'application/x-rail';
@@ -19,13 +19,16 @@ const Ico = ({ d, size = 15 }: { d: string; size?: number }) => (
 
 type DragRef = { kind: 'view' | 'cat'; key: string };
 
+/** 图墙卡片拖拽带 text/plain，左栏内部排序带 RAIL_MIME——靠这个区分两种拖拽 */
+const hasCard = (e: DragEvent) => Array.from(e.dataTransfer.types).includes('text/plain');
+
 export function Rail({
   view, setView, stats, tree, counts, category, setCategory, sub, setSub,
   railViews, railCats, onReorder, dropCat, setDropCat, onDropOnCategory, onDropOnSub,
   onAddCat, onRenameCat, onDropCat,
   worksets, wsFilter, onPickWorkset, onAddWorkset, onRenameWorkset, onDeleteWorkset, onDropOnWorkset,
   notes, activeNoteId, onPickNote, onAddNote, onRenameNote, onDeleteNote, onPinNote,
-  onClose, sectionCollapsed, onToggleSection
+  onClose, activeSection, onPickSection, dragging
 }: {
   view: View; setView: (v: View) => void; stats: Stats; tree: Tree;
   counts: Record<string, number>; category: string | null; setCategory: (c: string | null) => void;
@@ -53,9 +56,11 @@ export function Rail({
   onPinNote: (id: string) => void;
   /** 素材库滑出面板的关闭按钮（点遮罩 / Esc 也走同一出口） */
   onClose: () => void;
-  /** 各分区折叠状态（prefs.railCollapsed，经 normalizeCollapse 洗过） */
-  sectionCollapsed: CollapseState;
-  onToggleSection: (id: string) => void;
+  /** 当前分区：面板一次只渲染一个分区的完整功能 */
+  activeSection: string;
+  onPickSection: (id: string) => void;
+  /** 图墙卡片拖拽中：面板切到「放置面板」，分类 + 画板同屏可放 */
+  dragging: boolean;
 }) {
   const dragRef = useRef<DragRef | null>(null);
   const [drag, setDrag] = useState<DragRef | null>(null);
@@ -65,11 +70,11 @@ export function Rail({
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [catQuery, setCatQuery] = useState('');
   const [wsAdding, setWsAdding] = useState(false);
   const [wsNewName, setWsNewName] = useState('');
   const [editWs, setEditWs] = useState<string | null>(null);
   const [wsDraft, setWsDraft] = useState('');
-  const [dropWs, setDropWs] = useState<string | null>(null);
   const [noteAdding, setNoteAdding] = useState(false);
   const [noteNewName, setNoteNewName] = useState('');
   const [editNote, setEditNote] = useState<string | null>(null);
@@ -78,6 +83,16 @@ export function Rail({
   const views = (railViews.length ? railViews : NAV.map(n => n.key)).filter(k => k !== 'trash');
   const cats = railCats.length ? railCats : tree.map(([c]) => c);
   const sections = railSections.list();
+  const active = sections.find(s => s.id === activeSection) || sections[0];
+
+  const catNeedle = catQuery.trim().toLowerCase();
+  const shownCats = catNeedle ? cats.filter(c => c.toLowerCase().includes(catNeedle)) : cats;
+
+  const tabCount = (id: string) =>
+    id === 'categories' ? cats.length
+      : id === 'boards' ? worksets.length
+        : id === 'notes' ? notes.length
+          : stats.inbox || 0;
 
   const toggleOpen = (c: string) => {
     setOpen(prev => {
@@ -96,14 +111,13 @@ export function Rail({
       setDrag({ kind, key });
     },
     onDragOver: (e: DragEvent) => {
-      const types = Array.from(e.dataTransfer.types);
-      if (types.includes(RAIL_MIME)) {
+      if (Array.from(e.dataTransfer.types).includes(RAIL_MIME)) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (over !== key) setOver(key);
         return;
       }
-      if (kind === 'cat' && types.includes('text/plain')) {
+      if (kind === 'cat' && hasCard(e)) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (dropCat !== key) setDropCat(key);
@@ -114,13 +128,12 @@ export function Rail({
       if (kind === 'cat' && dropCat === key) setDropCat(null);
     },
     onDrop: (e: DragEvent) => {
-      const types = Array.from(e.dataTransfer.types);
       const src = dragRef.current;
-      if (types.includes(RAIL_MIME) && src) {
+      if (Array.from(e.dataTransfer.types).includes(RAIL_MIME) && src) {
         e.preventDefault();
         e.stopPropagation();
         onReorder(src.kind, src.key, key);
-      } else if (kind === 'cat' && types.includes('text/plain')) {
+      } else if (kind === 'cat' && hasCard(e)) {
         e.preventDefault();
         e.stopPropagation();
         setDropCat(null);
@@ -157,51 +170,82 @@ export function Rail({
     setNoteAdding(false);
   };
 
-  /** 分区头上的 ＋：折叠状态先展开分区再进输入态 */
-  const startAdd = (sec: RailSectionDef, setter: (v: boolean) => void) => {
-    if (isCollapsed(sectionCollapsed, sec)) onToggleSection(sec.id);
-    setter(true);
-  };
+  /** 卡片拖到分类 / 子类 / 画板行：整行高亮，松开即放入 */
+  const cardDropProps = (key: string, put: () => void) => ({
+    onDragOver: (e: DragEvent) => {
+      if (!hasCard(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (dropCat !== key) setDropCat(key);
+    },
+    onDragLeave: (e: DragEvent) => {
+      e.stopPropagation();
+      if (dropCat === key) setDropCat(null);
+    },
+    onDrop: (e: DragEvent) => {
+      if (!hasCard(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDropCat(null);
+      put();
+    }
+  });
 
-  /* ---------- 三个分区的内容体（结构原样平移，只换了外壳） ---------- */
+  /* ---------- 分区内容：一次只渲染当前分区 ---------- */
   const sectionBody = (id: string): ReactNode => {
     if (id === 'views') {
+      const tileCount = (k: View) =>
+        k === 'all' ? stats.total : k === 'inbox' ? stats.inbox : k === 'fav' ? stats.fav : null;
       return (
         <>
-          {views.map(k => {
-            const meta = NAV.find(n => n.key === k);
-            if (!meta) return null;
-            const n = k === 'all' ? stats.total : k === 'inbox' ? stats.inbox : k === 'fav' ? stats.fav : 0;
-            return (
-              <div
-                key={k}
-                className={'navitem' + (view === k && !category ? ' on' : '') + (over === k ? ' over' : '') + (drag?.key === k ? ' dragging' : '')}
-                onClick={() => { setView(k); setSub(null); }}
-                title={meta.label}
-                {...railDragProps('view', k)}
-              >
-                <i className="ico"><Ico d={meta.icon} /></i>
-                <span>{meta.label}</span>
-                {k === 'inbox' && n > 0 && <i className="alertdot" />}
-                <i className="cnt">{k === 'recent' ? '' : n}</i>
-              </div>
-            );
-          })}
-          <div
-            className={'navitem trashitem' + (view === 'trash' ? ' on' : '')}
+          <div className="vboard">
+            {views.map(k => {
+              const meta = NAV.find(n => n.key === k);
+              if (!meta) return null;
+              const n = tileCount(k);
+              return (
+                <button
+                  key={k}
+                  className={'vtile' + (view === k && !category ? ' on' : '') + (over === k ? ' over' : '') + (drag?.key === k ? ' dragging' : '')}
+                  onClick={() => { setView(k); setSub(null); }}
+                  title={meta.label}
+                  {...railDragProps('view', k)}
+                >
+                  <i className="vico"><Ico d={meta.icon} size={17} /></i>
+                  <span className="vnm">{meta.label}</span>
+                  {n !== null && <i className="vcnt">{n}</i>}
+                  {k === 'inbox' && n !== null && n > 0 && <i className="alertdot" />}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            className={'vtile trash' + (view === 'trash' ? ' on' : '')}
             onClick={() => { setView('trash'); setCategory(null); setSub(null); }}
             title="回收站：删掉的图还在这里，可以恢复"
           >
-            <i className="ico"><Ico d={NAV[4].icon} /></i>
-            <span>回收站</span>
-            <i className="cnt">{stats.trash || ''}</i>
-          </div>
+            <i className="vico"><Ico d={NAV[4].icon} size={15} /></i>
+            <span className="vnm">回收站</span>
+            <i className="vcnt">{stats.trash || ''}</i>
+          </button>
         </>
       );
     }
     if (id === 'categories') {
       return (
         <>
+          {cats.length > 6 && (
+            <label className="railsearch">
+              <input
+                value={catQuery}
+                placeholder="筛选分类"
+                onChange={e => setCatQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') setCatQuery(''); }}
+              />
+              <i>{catNeedle ? `${shownCats.length}/${cats.length}` : cats.length}</i>
+            </label>
+          )}
           {adding && (
             <div className="catadd">
               <input
@@ -218,14 +262,14 @@ export function Rail({
             </div>
           )}
           <div className="cats">
-            {cats.map(c => {
+            {shownCats.map(c => {
               const subs = tree.find(([n]) => n === c)?.[1] || [];
               const isOpen = open.has(c);
-              const active = category === c && !sub;
+              const on = category === c && !sub;
               return (
                 <div className="catblock" key={c}>
                   <div
-                    className={'cat' + (active ? ' on' : '') + (over === c ? ' over' : '')
+                    className={'cat' + (on ? ' on' : '') + (over === c ? ' over' : '')
                       + (dropCat === c ? ' drop' : '') + (drag?.key === c ? ' dragging' : '')}
                     onClick={() => { if (editing !== c) { setCategory(category === c && !sub ? null : c); setSub(null); } }}
                     title={c}
@@ -269,22 +313,7 @@ export function Rail({
                           className={'catsub' + (category === c && sub === s ? ' on' : '') + (dropCat === c + '/' + s ? ' drop' : '')}
                           title={`只看「${c} / ${s}」`}
                           onClick={() => { setCategory(c); setSub(s); }}
-                          onDragOver={e => {
-                            if (Array.from(e.dataTransfer.types).includes('text/plain')) {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setDropCat(c + '/' + s);
-                            }
-                          }}
-                          onDragLeave={() => setDropCat(null)}
-                          onDrop={e => {
-                            if (Array.from(e.dataTransfer.types).includes('text/plain')) {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setDropCat(null);
-                              onDropOnSub(c, s);
-                            }
-                          }}
+                          {...cardDropProps(c + '/' + s, () => onDropOnSub(c, s))}
                         >
                           <span>{s}</span>
                         </div>
@@ -294,6 +323,9 @@ export function Rail({
                 </div>
               );
             })}
+            {!shownCats.length && (
+              <div className="ws-none">{catNeedle ? '没有匹配的分类' : '还没有分类，点上面 ＋ 新建'}</div>
+            )}
           </div>
         </>
       );
@@ -320,25 +352,10 @@ export function Rail({
             {worksets.map(w => (
               <div
                 key={w.id}
-                className={'cat ws' + (wsFilter === w.id ? ' on' : '') + (dropWs === w.id ? ' drop' : '')}
+                className={'cat ws' + (wsFilter === w.id ? ' on' : '') + (dropCat === w.id ? ' drop' : '')}
                 onClick={() => { if (editWs !== w.id) onPickWorkset(wsFilter === w.id ? null : w.id); }}
                 title={`画板「${w.name}」· ${w.count} 张 · 把图拖到这里加入`}
-                onDragOver={e => {
-                  if (Array.from(e.dataTransfer.types).includes('text/plain')) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (dropWs !== w.id) setDropWs(w.id);
-                  }
-                }}
-                onDragLeave={() => setDropWs(d => (d === w.id ? null : d))}
-                onDrop={e => {
-                  if (Array.from(e.dataTransfer.types).includes('text/plain')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDropWs(null);
-                    onDropOnWorkset(w.id);
-                  }
-                }}
+                {...cardDropProps(w.id, () => onDropOnWorkset(w.id))}
               >
                 {editWs === w.id ? (
                   <input
@@ -443,43 +460,102 @@ export function Rail({
     return null;
   };
 
+  /** 每个分区自带一条动作带：新建入口跟着内容走，不再缩在分区头的小箭头旁 */
+  const sectionAction = (id: string): ReactNode => {
+    if (id === 'categories') return <button className="railadd-lg" onClick={() => setAdding(true)}>＋ 新建分类</button>;
+    if (id === 'boards') return <button className="railadd-lg" onClick={() => setWsAdding(true)}>＋ 新建画板</button>;
+    if (id === 'notes') return <button className="railadd-lg" onClick={() => setNoteAdding(true)}>＋ 新建笔记</button>;
+    return null;
+  };
+
+  /* ---------- 拖拽放置面板：卡片拖拽时分类 + 画板同屏，两个去处都够得着 ---------- */
+  const dropPanel = (
+    <>
+      <div className="dropnote">拖到分类或画板，松开即放入</div>
+      <div className="dropttl">分类<i className="dropttl-n">{cats.length}</i></div>
+      <div className="cats dropcats">
+        {cats.map(c => {
+          const subs = tree.find(([n]) => n === c)?.[1] || [];
+          return (
+            <div className="catblock" key={c}>
+              <div className={'cat' + (dropCat === c ? ' drop' : '')} {...cardDropProps(c, () => onDropOnCategory(c))}>
+                <span className="nm">{c}</span>
+                <i className="cnt">{counts[c] || ''}</i>
+              </div>
+              {subs.length > 0 && (
+                <div className="subs">
+                  {subs.map(s => (
+                    <div
+                      key={s}
+                      className={'catsub' + (dropCat === c + '/' + s ? ' drop' : '')}
+                      {...cardDropProps(c + '/' + s, () => onDropOnSub(c, s))}
+                    >
+                      <span>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {!cats.length && <div className="ws-none">还没有分类</div>}
+      </div>
+      <div className="dropttl">画板<i className="dropttl-n">{worksets.length}</i></div>
+      <div className="boards dropboards">
+        {worksets.map(w => (
+          <div
+            key={w.id}
+            className={'cat ws' + (dropCat === w.id ? ' drop' : '')}
+            {...cardDropProps(w.id, () => onDropOnWorkset(w.id))}
+          >
+            <span className="nm">{w.name}</span>
+            <i className="cnt">{w.count || ''}</i>
+          </div>
+        ))}
+        {!worksets.length && <div className="ws-none">还没有画板</div>}
+      </div>
+    </>
+  );
+
   return (
-    <nav className="rail" aria-label="素材库导航">
+    <nav className={'rail' + (dragging ? ' dropping' : '')} aria-label="素材库导航">
       <div className="railhead">
-        <span className="railttl">LIB / 素材库</span>
+        <span className="railttl">LIB<span className="railttl-sep"> / </span>{active?.cn}</span>
         <button className="railclose" onClick={onClose} title="关闭素材库（Esc）" aria-label="关闭素材库">×</button>
       </div>
 
-      <div className="railbody">
+      {dragging ? (
+        <div className="dropbar"><i className="alertdot" />放置模式</div>
+      ) : (
+        <div className="railsw" role="tablist" aria-label="素材库分区">
           {sections.map(sec => {
-            const folded = isCollapsed(sectionCollapsed, sec);
+            const n = tabCount(sec.id);
             return (
-              <section key={sec.id} className="rsec" data-sec={sec.id}>
-                <div className="rsec-h">
-                  <button
-                    className="rsec-fold"
-                    onClick={() => onToggleSection(sec.id)}
-                    title={folded ? `展开${sec.cn}` : `收起${sec.cn}`}
-                    aria-expanded={!folded}
-                  >
-                    <span>{sec.en} / {sec.cn}</span>
-                    <i className={'rsec-caret' + (folded ? '' : ' open')}>▸</i>
-                  </button>
-                  {sec.id === 'categories' && (
-                    <button className="railadd" onClick={() => startAdd(sec, setAdding)} title="新建分类">＋</button>
-                  )}
-                  {sec.id === 'boards' && (
-                    <button className="railadd" onClick={() => startAdd(sec, setWsAdding)} title="新建画板（跨分类临时组图）">＋</button>
-                  )}
-                  {sec.id === 'notes' && (
-                    <button className="railadd" onClick={() => startAdd(sec, setNoteAdding)} title="新建笔记">＋</button>
-                  )}
-                </div>
-                {!folded && <div className="rsec-b">{sectionBody(sec.id)}</div>}
-              </section>
+              <button
+                key={sec.id}
+                role="tab"
+                aria-selected={sec.id === active?.id}
+                className={'railsw-btn' + (sec.id === active?.id ? ' on' : '')}
+                data-sec-tab={sec.id}
+                onClick={() => onPickSection(sec.id)}
+                title={`${sec.en} / ${sec.cn}`}
+              >
+                <i className="ico"><Ico d={sec.icon} size={14} /></i>
+                <span className="lb">{sec.cn}{n > 0 && <i className="cnt">{n}</i>}</span>
+              </button>
             );
           })}
         </div>
+      )}
+
+      <div className="railbody">
+        {dragging ? dropPanel : (
+          <section className="rsec" data-sec={active?.id} key={active?.id}>
+            {sectionAction(active?.id || '')}
+            {sectionBody(active?.id || '')}
+          </section>
+        )}
+      </div>
     </nav>
   );
 }

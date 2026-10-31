@@ -188,8 +188,13 @@ test('RTM-S4: 交互回归冒烟（导入 → 占位 → 按下即拖 native dra
 
   // 3) 阶段 B：切分类后 ~120ms 占位框必须已有高度、不重播进入动画
   const jsB = `(async()=>{
+    // 面板单段渲染：先亮出素材库并切到分类页签，Hands 才会挂载
+    document.querySelector('.actbar .act-lib').click();
+    await new Promise(r => setTimeout(r, 400));
+    document.querySelector('[data-sec-tab="categories"]').click();
+    await new Promise(r => setTimeout(r, 320));
     const cat = [...document.querySelectorAll('.cats .cat')].find(el => (el.querySelector('.nm')||{}).textContent === 'Hands');
-    if (!cat) return { error: 'Hands 分类不在左栏' };
+    if (!cat) return { error: 'Hands 分类不在分类分区' };
     const t0 = performance.now();
     cat.click();
     await new Promise(r => setTimeout(r, 120));
@@ -198,6 +203,8 @@ test('RTM-S4: 交互回归冒烟（导入 → 占位 → 按下即拖 native dra
     const hs = frames.map(f => Math.round(f.getBoundingClientRect().height));
     const still = document.querySelectorAll('.card.still').length;
     const anim = document.querySelectorAll('.card:not(.still)').length;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await new Promise(r => setTimeout(r, 320));
     return {
       dt, frames: frames.length, heights: hs,
       zeroHeight: hs.filter(h => h <= 0).length,
@@ -205,7 +212,7 @@ test('RTM-S4: 交互回归冒烟（导入 → 占位 → 按下即拖 native dra
     };
   })()`;
   const b = await runElectron({ js: jsB, shot: 'smoke-02-category-switch.png', extraEnv: commonEnv });
-  assert.ok(!b.jsResult.error, '左栏出现 Hands 分类: ' + JSON.stringify(b.jsResult));
+  assert.ok(!b.jsResult.error, '分类页签出现 Hands 分类: ' + JSON.stringify(b.jsResult));
   assert.equal(b.jsResult.frames, 5, '切到 Hands 后 5 张卡片挂载');
   assert.equal(b.jsResult.zeroHeight, 0, '占位框零塌陷（120ms 内全部有高度）');
   assert.ok(b.jsResult.dt < 400, '测量发生在点击后 400ms 内，实际 ' + b.jsResult.dt + 'ms');
@@ -282,7 +289,7 @@ const OUT2 = path.join(ROOT, '.rc-layout-out');
 const LIB2 = path.join(OUT2, 'lib');
 const IMG2 = path.join(OUT2, 'img');
 
-test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉（5 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
+test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / activity bar + 窄浮层（页签/放置面板）/ 检查器浮层 / 命令面板 / 问询抽屉（8 张截图）', { skip: SKIP_NO_ELECTRON }, async () => {
   killApp();
   parkCursor();   // 上一个用例的真鼠标拖拽可能把光标留在屏幕中央（命令面板悬停选中会被干扰）
   fs.rmSync(OUT2, { recursive: true, force: true });
@@ -329,11 +336,15 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布�
     return {
       added: r.added,
       secs: [...document.querySelectorAll('.rsec')].map(s => s.dataset.sec),
+      secTabs: [...document.querySelectorAll('.railsw-btn')].map(b => b.dataset.secTab),
+      tabOn: document.querySelector('.railsw-btn.on')?.dataset.secTab,
+      titleSettings: !!document.querySelector('.titlebar button[title="库设置"]'),
       tabs,
       dockOpen,
       stageW,
       viewW,
-      capsule: document.querySelectorAll('.capsule .cap-btn').length,
+      actBtns: document.querySelectorAll('.actbar .act-btn').length,
+      actSecs: [...document.querySelectorAll('.act-btn[data-act-sec]')].map(b => b.dataset.actSec),
       railClosed: !document.querySelector('.railwrap').classList.contains('open'),
       inspectorTab: !!document.querySelector('.inspector-tab'),
       fab: !!document.querySelector('.guide-fab'),
@@ -342,39 +353,145 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布�
   })()`;
   const a = await runElectron({ js: jsA, shot: 'layout-01-default.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('shared'), extraEnv: envOf('shared') });
   assert.equal(a.jsResult.added, specs.length, '全部图片导入成功');
-  assert.deepEqual(a.jsResult.secs, ['views', 'categories', 'boards', 'notes'], '素材库四个默认 Section 按 order 渲染（RTM-S24 笔记分区就位）');
+  assert.deepEqual(a.jsResult.secTabs, ['views', 'categories', 'boards', 'notes'], '面板头部四个分区切换器按 order 排位');
+  assert.deepEqual(a.jsResult.secs, ['views'], '面板默认只渲染一个分区（视图）');
+  assert.equal(a.jsResult.tabOn, 'views', '默认激活视图分区');
+  assert.ok(a.jsResult.titleSettings, '设置只留标题栏一个入口（activity bar 不再重复）');
   assert.deepEqual(a.jsResult.tabs, ['INSPECTOR检查器', 'NOTES笔记'], '选中图片后右栏出现检查器 + 笔记两个 Tab');
   assert.ok(a.jsResult.dockOpen, '选中即亮出检查器浮层');
   assert.ok(a.jsResult.railClosed, '默认画布优先：素材库浮层收起');
-  assert.ok(a.jsResult.capsule >= 7, '悬浮工具胶囊常驻（实测 ' + a.jsResult.capsule + ' 个按钮）');
+  assert.equal(a.jsResult.actBtns, 6, 'activity bar = LIB + 四分区 + 命令（实测 ' + a.jsResult.actBtns + '）');
+  assert.deepEqual(a.jsResult.actSecs, ['views', 'categories', 'boards', 'notes'], 'activity bar 每分区一枚入口');
   assert.ok(a.jsResult.inspectorTab, 'Esc 清选后检查器收回，右缘只剩入口签');
   assert.ok(a.jsResult.fab, '问询 FAB 存在');
   assert.equal(a.jsResult.cards, specs.length, '瀑布流卡片挂载');
   assert.ok(Math.abs(a.jsResult.stageW - a.jsResult.viewW) <= 1, `stage 吃满窗口（${a.jsResult.stageW}/${a.jsResult.viewW}）`);
 
-  // 阶段 B：点胶囊 LIB 钮 → 素材库浮层滑出（遮罩 + 胶囊让位 + 分区内容可见）
+  // 阶段 B：activity bar 的 LIB 钮 → 视图窄浮层；点分区图标换页（宽度随分区变）；再点同一图标收起
   const jsB = `(async()=>{
-    document.querySelector('.capsule .cap-lib').click();
+    document.querySelector('.actbar .act-lib').click();
     await new Promise(r => setTimeout(r, 450));
     const wrap = document.querySelector('.railwrap');
     const app = document.querySelector('.app');
-    const firstNav = document.querySelector('.railbody .navitem');
-    return {
+    const firstTile = document.querySelector('.railbody .vtile');
+    const out = {
       open: wrap.classList.contains('open'),
       railState: app.dataset.rail,
-      visibility: firstNav ? getComputedStyle(firstNav).visibility : 'none',
-      capsuleAway: document.querySelector('.capsule').classList.contains('away'),
-      navItems: document.querySelectorAll('.railbody .navitem').length,
+      visibility: firstTile ? getComputedStyle(firstTile).visibility : 'none',
+      actbarAlive: !!document.querySelector('.actbar'),
+      dataSec: wrap.dataset.sec,
+      wrapW: Math.round(wrap.getBoundingClientRect().width),
+      bodySec: document.querySelector('.railbody .rsec')?.dataset.sec,
+      tiles: document.querySelectorAll('.railbody .vtile').length,
       veilOn: document.querySelector('.veil-panel').classList.contains('on')
     };
+    document.querySelector('.act-btn[data-act-sec="categories"]').click();
+    await new Promise(r => setTimeout(r, 320));
+    out.bodySec2 = document.querySelector('.railbody .rsec')?.dataset.sec;
+    out.tabOn2 = document.querySelector('.railsw-btn.on')?.dataset.secTab;
+    out.addAction = document.querySelector('.railbody .railadd-lg')?.textContent || '';
+    out.stillOpen = wrap.classList.contains('open');
+    out.wrapW2 = Math.round(wrap.getBoundingClientRect().width);
+    out.dataSec2 = wrap.dataset.sec;
+    document.querySelector('.act-btn[data-act-sec="categories"]').click();
+    await new Promise(r => setTimeout(r, 320));
+    out.closedByAct = !wrap.classList.contains('open');
+    document.querySelector('.act-btn[data-act-sec="categories"]').click();
+    await new Promise(r => setTimeout(r, 320));
+    out.reopened = wrap.classList.contains('open');
+    document.querySelector('[data-sec-tab="views"]').click();
+    await new Promise(r => setTimeout(r, 220));
+    return out;
   })()`;
   const b = await runElectron({ js: jsB, shot: 'layout-02-rail-open.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b'), extraEnv: envOf('b') });
   assert.ok(b.jsResult.open, 'railwrap 挂上 .open');
   assert.equal(b.jsResult.railState, 'open', 'app 状态切到素材库浮层');
   assert.equal(b.jsResult.visibility, 'visible', '分区内容可见');
-  assert.equal(b.jsResult.navItems, 5, '视图分区五条导航（含回收站）');
-  assert.ok(b.jsResult.capsuleAway, '浮层打开时胶囊让位');
+  assert.equal(b.jsResult.dataSec, 'views', '浮层 data-sec 跟随分区');
+  assert.equal(b.jsResult.bodySec, 'views', '默认分区是视图');
+  assert.equal(b.jsResult.tiles, 5, '视图分区五个速览块（含回收站）');
+  assert.ok(b.jsResult.actbarAlive, '浮层打开时 activity bar 仍在（停靠在浮层左缘）');
+  assert.equal(b.jsResult.wrapW - 58, 256, '视图浮层内容宽 256px（总宽 ' + b.jsResult.wrapW + '）');
   assert.ok(b.jsResult.veilOn, '画布遮罩生效（点空白可关）');
+  assert.equal(b.jsResult.bodySec2, 'categories', '点 activity bar 分区图标 → 面板换段');
+  assert.equal(b.jsResult.tabOn2, 'categories', '分类页签进入激活态');
+  assert.ok(String(b.jsResult.addAction).includes('新建分类'), '换段后动作带跟着内容走（新建分类）');
+  assert.ok(b.jsResult.stillOpen, '活动栏换段不关闭面板');
+  assert.equal(b.jsResult.dataSec2, 'categories', 'data-sec 同步到分类');
+  assert.equal(b.jsResult.wrapW2 - 58, 248, '分类浮层内容宽 248px（总宽 ' + b.jsResult.wrapW2 + '）');
+  assert.ok(b.jsResult.closedByAct, '再点同一分区图标 → 收起浮层');
+  assert.ok(b.jsResult.reopened, '收起后再点 → 回到同一分区打开');
+
+  // 阶段 B2：分类分区——单段渲染 + 分类筛选 + 动作带
+  const jsB2 = `(async()=>{
+    document.querySelector('.actbar .act-lib').click();
+    await new Promise(r => setTimeout(r, 400));
+    document.querySelector('[data-sec-tab="categories"]').click();
+    await new Promise(r => setTimeout(r, 320));
+    return {
+      bodySec: document.querySelector('.railbody .rsec')?.dataset.sec,
+      rows: document.querySelectorAll('.railbody .cats .cat').length,
+      add: document.querySelector('.railbody .railadd-lg')?.textContent || '',
+      search: !!document.querySelector('.railsearch')
+    };
+  })()`;
+  const b2 = await runElectron({ js: jsB2, shot: 'layout-06-rail-categories.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b2'), extraEnv: envOf('b2') });
+  assert.equal(b2.jsResult.bodySec, 'categories', '分类页签渲染分类分区');
+  assert.ok(b2.jsResult.rows >= 1, '分类行渲染（实测 ' + b2.jsResult.rows + '）');
+  assert.ok(String(b2.jsResult.add).includes('新建分类'), '动作带显示「新建分类」');
+  assert.ok(b2.jsResult.search, '分类多于 6 个时出现筛选框');
+
+  // 阶段 B3：卡片拖拽 → 面板切到放置模式（分类 + 画板同屏；不派发 dragend，截图停在放置态）
+  const jsB3 = `(async()=>{
+    const dt = new DataTransfer();
+    const card = document.querySelector('.card');
+    card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await new Promise(r => setTimeout(r, 450));
+    const rail = document.querySelector('.rail');
+    return {
+      open: document.querySelector('.railwrap').classList.contains('open'),
+      dropping: rail.classList.contains('dropping'),
+      bar: document.querySelector('.dropbar')?.textContent || '',
+      cats: document.querySelectorAll('.dropcats .cat').length,
+      subs: document.querySelectorAll('.dropcats .catsub').length,
+      boardsBox: !!document.querySelector('.dropboards'),
+      tabsGone: !document.querySelector('.railsw')
+    };
+  })()`;
+  const b3 = await runElectron({ js: jsB3, shot: 'layout-07-rail-drop.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b3'), extraEnv: envOf('b3') });
+  assert.ok(b3.jsResult.open, '拖拽自动亮出面板');
+  assert.ok(b3.jsResult.dropping, '面板进入放置模式');
+  assert.ok(String(b3.jsResult.bar).includes('放置模式'), '顶部状态条提示放置模式');
+  assert.ok(b3.jsResult.cats >= 1, '放置面板列出分类（实测 ' + b3.jsResult.cats + '）');
+  assert.ok(b3.jsResult.subs >= 0, '子类在放置模式默认展开（实测 ' + b3.jsResult.subs + '）');
+  assert.ok(b3.jsResult.boardsBox, '放置面板同时列出画板');
+  assert.ok(b3.jsResult.tabsGone, '放置模式隐藏页签，避免误触换段');
+
+  // 阶段 B4：在放置面板上真放一次——松开后卡片换分类（拖拽链路端到端）
+  const jsB4 = `(async()=>{
+    const dt = new DataTransfer();
+    const card = document.querySelector('.card');
+    const id = card.dataset.id;
+    dt.setData('text/plain', id);
+    card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await new Promise(r => setTimeout(r, 420));
+    const list = await window.api.lib.list({});
+    const before = list.find(i => i.id === id)?.category || '';
+    const row = [...document.querySelectorAll('.dropcats .cat')]
+      .find(el => ((el.querySelector('.nm')||{}).textContent || '') !== before);
+    const target = row ? (row.querySelector('.nm')||{}).textContent : null;
+    if (row) {
+      row.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      row.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    }
+    await new Promise(r => setTimeout(r, 700));
+    const after = (await window.api.lib.list({})).find(i => i.id === id)?.category || '';
+    return { before, target, after, moved: !!target && after === target, toast: (document.querySelector('.toast .msg')||{}).textContent || '' };
+  })()`;
+  const b4 = await runElectron({ js: jsB4, shot: 'layout-08-drop-applied.png', outDir: OUT2, lib: LIB2, userdata: userdataOf('b4'), extraEnv: envOf('b4') });
+  assert.ok(b4.jsResult.target, '放置面板里找到另一个分类作为落点');
+  assert.ok(b4.jsResult.moved, `拖放后卡片换到「${b4.jsResult.target}」（${b4.jsResult.before} → ${b4.jsResult.after}）`);
+  assert.ok(String(b4.jsResult.toast).includes('已改判') || String(b4.jsResult.toast).includes('已移到'), '拖放完成有 toast 回执');
 
   // 阶段 C：检查器浮层开关（选中亮出 / × 收起 / 入口签再打开），画布宽度全程不变
   const jsC = `(async()=>{
@@ -449,8 +566,8 @@ test('RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布�
   assert.equal(e.jsResult.sendDisabled, true, '空输入时发送按钮禁用');
   assert.ok(e.jsResult.fabOn, 'FAB 同步点亮');
 
-  // 5 张截图齐活
-  for (const s of ['layout-01-default.png', 'layout-02-rail-open.png', 'layout-03-inspector.png', 'layout-04-cmdk.png', 'layout-05-guide.png']) {
+  // 8 张截图齐活
+  for (const s of ['layout-01-default.png', 'layout-02-rail-open.png', 'layout-03-inspector.png', 'layout-04-cmdk.png', 'layout-05-guide.png', 'layout-06-rail-categories.png', 'layout-07-rail-drop.png', 'layout-08-drop-applied.png']) {
     const p = path.join(OUT2, s);
     assert.ok(fs.existsSync(p) && fs.statSync(p).size > 1000, '截图存在且非空: ' + p);
   }

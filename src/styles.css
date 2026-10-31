@@ -171,15 +171,19 @@ img { display: block; }
   position: relative; flex: 1; display: flex; min-height: 0; overflow: hidden;
 }
 
-/* 素材库滑出面板（左）：收起时整体平移到画布外，只留悬浮工具胶囊 */
+/* 素材库窄浮层（左）：宽度随分区变（data-sec），左侧 58px 留给 activity bar 停靠 */
 .railwrap {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 280px; z-index: 28;
+  position: absolute; left: 0; top: 0; bottom: 0; width: 306px; z-index: 28;
   transform: translateX(-101%); visibility: hidden; -webkit-app-region: no-drag;
   box-shadow: var(--sh-3);
-  transition: transform 240ms var(--ease), visibility 0s linear 240ms;
+  transition: transform 240ms var(--ease), width 200ms var(--ease), visibility 0s linear 240ms;
 }
-.railwrap.open { transform: none; visibility: visible; transition: transform 240ms var(--ease); }
-.railwrap .rail { width: 100%; height: 100%; }
+.railwrap.open { transform: none; visibility: visible; transition: transform 240ms var(--ease), width 200ms var(--ease); }
+.railwrap[data-sec="views"] { width: 314px; }
+.railwrap[data-sec="categories"] { width: 306px; }
+.railwrap[data-sec="boards"] { width: 300px; }
+.railwrap[data-sec="notes"] { width: 318px; }
+.railwrap .rail { width: 100%; height: 100%; padding-left: 58px; }
 
 /* 面板遮罩：只盖画布，让「点空白关闭」成立 */
 .veil-panel {
@@ -188,25 +192,25 @@ img { display: block; }
 }
 .veil-panel.on { opacity: 1; pointer-events: auto; }
 
-/* 悬浮工具胶囊：收起面板时的常驻入口（素材库/视图/分类/画板/笔记/命令/设置） */
-.capsule {
-  position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 25;
+/* activity bar：左侧常驻竖条（LIB / 四分区 / 命令）；浮层打开时正好停在浮层左缘 */
+.actbar {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 29;
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px;
   background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--sh-3);
-  transition: transform 180ms var(--ease), opacity 180ms var(--ease);
 }
-.capsule.away { transform: translate(-70px, -50%); opacity: 0; pointer-events: none; }
-.cap-btn {
+.act-btn {
   width: 36px; height: 36px; display: grid; place-items: center; color: var(--muted);
   transition: background var(--direct) var(--ease), color var(--direct) var(--ease);
 }
-.cap-btn:hover { background: var(--wash-4); color: var(--ink); }
-.cap-btn.on { background: var(--ink); color: var(--on-ink); }
-.cap-btn svg { stroke: currentColor; fill: none; stroke-width: 1.4; }
-.cap-sep { width: 18px; height: 1px; background: var(--line); margin: 4px 0; }
-.cap-lib { font-family: var(--mono); }
+.act-btn:hover { background: var(--wash-4); color: var(--ink); }
+.act-btn.on { background: var(--ink); color: var(--on-ink); }
+.act-btn svg { stroke: currentColor; fill: none; stroke-width: 1.4; }
+.act-sep { width: 18px; height: 1px; background: var(--line); margin: 4px 0; }
+/* LIB 钮带小标签：一眼看出这是素材库总开关 */
+.act-lib { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 46px; }
+.act-tag { font-family: var(--mono); font-size: 8px; font-style: normal; letter-spacing: .16em; opacity: .72; }
 
-/* ---------- 素材库面板：分区（Section 注册制） ---------- */
+/* ---------- 素材库面板：单分区分段（Section 注册制） ---------- */
 .rail {
   background: var(--panel-2); border-right: 1px solid var(--frame);
   display: flex; flex-direction: column; min-height: 0; overflow: hidden;
@@ -218,6 +222,7 @@ img { display: block; }
 .railttl {
   margin-right: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .22em; color: var(--muted-2);
 }
+.railttl-sep { opacity: .45; }
 .railclose {
   width: 26px; height: 26px; display: grid; place-items: center;
   font-size: 15px; line-height: 1; color: var(--muted-2);
@@ -225,7 +230,37 @@ img { display: block; }
 }
 .railclose:hover { background: var(--ink); color: var(--on-ink); }
 
-/* 分区主体：整栏一个滚动容器（分区可折叠后不再各自成滚动区） */
+/* 分区切换器：四个功能各占一格，点谁显示谁（面板不再堆成一条长列表） */
+.railsw {
+  flex: 0 0 auto; display: flex; gap: 2px; padding: 5px 6px;
+  border-bottom: 1px solid var(--line); -webkit-app-region: no-drag;
+}
+.railsw-btn {
+  flex: 1 1 0; min-width: 0; height: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--muted-2);
+  transition: background var(--direct) var(--ease), color var(--direct) var(--ease);
+}
+.railsw-btn .ico { display: flex; }
+.railsw-btn .ico svg { stroke: currentColor; fill: none; }
+.railsw-btn .lb {
+  display: flex; align-items: center; gap: 4px; max-width: 100%;
+  font-size: 9.5px; letter-spacing: .08em; white-space: nowrap;
+}
+.railsw-btn .cnt { font-family: var(--mono); font-size: 8.5px; font-style: normal; color: var(--muted-3); font-variant-numeric: tabular-nums; }
+.railsw-btn:hover { background: var(--wash-3); color: var(--ink); }
+.railsw-btn.on { background: var(--ink); color: var(--on-ink); }
+.railsw-btn.on .cnt { color: var(--acc-on-inv); opacity: .75; }
+
+/* 放置模式（卡片拖拽中）：分区切换器让位给状态条 */
+.dropbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 55px; padding: 0 14px;
+  border-bottom: 1px solid var(--line); background: var(--wash-4);
+  font-family: var(--mono); font-size: 9px; letter-spacing: .2em; color: var(--ink-2);
+}
+.dropbar .alertdot { width: 5px; height: 5px; background: var(--signal); animation: pulse var(--attention) var(--ease) infinite; }
+
+/* 分区主体：整栏一个滚动容器 */
 .railbody {
   flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 10px;
   -webkit-app-region: no-drag;
@@ -233,41 +268,65 @@ img { display: block; }
 .railbody::-webkit-scrollbar { width: 6px; }
 .railbody::-webkit-scrollbar-thumb { background: var(--steel); }
 
-/* 分区外壳：标题行可折叠，折叠状态进 prefs.railCollapsed */
-.rsec + .rsec { border-top: 1px solid var(--line); margin-top: 8px; }
-.rsec-h { display: flex; align-items: center; height: 30px; margin-top: 6px; padding: 0 10px 0 6px; }
-.rsec-fold {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 100%;
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--muted-2);
-  text-align: left;
-  transition: color var(--direct) var(--ease);
-}
-.rsec-fold:hover { color: var(--ink); }
-.rsec-fold span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rsec-caret {
-  font-style: normal; margin-left: auto; font-size: 9px; color: var(--muted-3);
-  transition: transform var(--direct) var(--ease);
-}
-.rsec-caret.open { transform: rotate(90deg); }
+.rsec { display: flex; flex-direction: column; min-height: 0; }
 
-.navitem {
-  position: relative; display: grid; grid-template-columns: 15px 1fr auto auto; align-items: center; gap: 9px;
-  height: 34px; margin: 0 8px 1px; padding: 0 10px 0 12px;
-  font-size: 12.5px; color: var(--ink-2); -webkit-app-region: no-drag;
-  transition: background var(--direct) var(--ease), color var(--direct) var(--ease);
+/* 分区动作带：新建入口跟着内容走，不再缩在分区头的小箭头旁 */
+.railadd-lg {
+  flex: 0 0 auto; height: 30px; margin: 8px 8px 4px; border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--muted-2);
+  transition: background var(--direct) var(--ease), color var(--direct) var(--ease), border-color var(--direct) var(--ease);
 }
-.navitem .ico { display: flex; color: currentColor; opacity: .8; }
-.navitem .ico svg { stroke: currentColor; fill: none; }
-.navitem .cnt { font-family: var(--mono); font-size: 10px; color: var(--muted-3); font-variant-numeric: tabular-nums; }
-.navitem .alertdot { width: 5px; height: 5px; background: var(--signal); box-shadow: 0 0 0 2px rgba(255, 250, 0, .22); animation: pulse var(--attention) var(--ease) infinite; }
-.navitem:hover { background: var(--wash-3); color: var(--ink); }
-.navitem.on { background: var(--ink); color: var(--on-ink); }
-.navitem.on .ico { opacity: 1; }
-.navitem.on .cnt { color: var(--acc-on-inv); }
+.railadd-lg:hover { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+
+/* 视图分区：2 列速览块，一眼看到数量，而不是一串同款行 */
+.vboard { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 8px 0; }
+.vtile {
+  position: relative; height: 78px; padding: 9px 10px;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px;
+  text-align: left; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
+  transition: background var(--direct) var(--ease), color var(--direct) var(--ease), border-color var(--direct) var(--ease);
+}
+.vtile .vico { display: flex; opacity: .8; }
+.vtile .vico svg { stroke: currentColor; fill: none; }
+.vtile .vnm { font-size: 11.5px; letter-spacing: .02em; }
+.vtile .vcnt {
+  position: absolute; right: 9px; top: 8px; font-style: normal;
+  font-family: var(--mono); font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.vtile .alertdot {
+  position: absolute; left: 10px; top: 27px; width: 5px; height: 5px;
+  background: var(--signal); box-shadow: 0 0 0 2px rgba(255, 250, 0, .22);
+  animation: pulse var(--attention) var(--ease) infinite;
+}
+.vtile:hover { background: var(--wash-4); border-color: var(--line-2); color: var(--ink); }
+.vtile.on { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.vtile.on .vico { opacity: 1; }
+.vtile.on .vcnt { color: var(--acc-on-inv); }
+.vtile.trash {
+  flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px;
+  width: calc(100% - 16px); height: 42px; margin: 6px 8px 8px;
+}
+.vtile.trash .vcnt { position: static; margin-left: auto; font-size: 11px; }
+
+/* 拖拽排序：插入位指示线（视图块 / 分类行共用） */
+.vtile.over::before, .cat.over::before {
+  content: ""; position: absolute; left: 6px; right: 6px; top: -1px; height: 2px; background: var(--ink);
+}
+.vtile.dragging, .cat.dragging { opacity: .45; }
+
+/* 分类筛选（分类多时才出现，直接减少滚动） */
+.railsearch {
+  display: flex; align-items: center; gap: 6px; height: 30px; margin: 8px 8px 4px;
+  padding: 0 8px; border: 1px solid var(--line); background: var(--panel);
+}
+.railsearch input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+  font-family: var(--mono); font-size: 11px; color: var(--ink);
+}
+.railsearch i { font-style: normal; font-family: var(--mono); font-size: 9px; color: var(--muted-3); }
 
 /* 分类列表：滚动收归 .railbody 统一管理 */
 .cats { padding-bottom: 6px; }
-
 .cat {
   position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px;
   height: 30px; margin: 0 8px 1px; padding: 0 10px 0 12px;
@@ -281,11 +340,25 @@ img { display: block; }
 .cat.drop { background: var(--ink); color: var(--on-ink); border-left-color: var(--acc-on-inv); }
 .cat.drop .cnt { color: var(--acc-on-inv); }
 
-/* 拖拽排序：插入位指示线 */
-.navitem.over::before, .cat.over::before {
-  content: ""; position: absolute; left: 6px; right: 6px; top: -1px; height: 2px; background: var(--ink);
+/* 拖拽放置面板：分类 + 画板同屏，两个去处都够得着 */
+.dropnote {
+  flex: 0 0 auto; margin: 8px; padding: 8px 10px; border-left: 2px solid var(--signal); background: var(--wash-4);
+  font-size: 11px; line-height: 1.5; color: var(--ink-2);
 }
-.navitem.dragging, .cat.dragging { opacity: .45; }
+.dropttl {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px; margin: 10px 12px 2px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .18em; color: var(--muted-2);
+}
+.dropttl-n { font-style: normal; color: var(--muted-3); }
+.dropcats .cat, .dropboards .cat { cursor: copy; }
+/* 放置面板的行没有箭头列：名字从行首排起，别再被 12px 的箭头列切掉 */
+.dropcats .cat { grid-template-columns: 1fr auto; padding-left: 14px; }
+/* 拖拽放置面板：分类可滚、画板钉在下半屏——两个去处始终同屏 */
+.rail.dropping .railbody { display: flex; flex-direction: column; overflow: hidden; }
+.dropcats { flex: 1 1 auto; min-height: 96px; overflow-y: auto; }
+.dropboards { flex: 0 0 auto; max-height: 34%; overflow-y: auto; padding-bottom: 4px; }
+.dropcats::-webkit-scrollbar, .dropboards::-webkit-scrollbar { width: 6px; }
+.dropcats::-webkit-scrollbar-thumb, .dropboards::-webkit-scrollbar-thumb { background: var(--steel); }
 
 /* ---------- 中栏 ---------- */
 .stage { position: relative; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
@@ -916,16 +989,17 @@ button.kbd:hover { color: var(--ink); border-color: var(--ink); }
 .modal .mb button.primary.danger { background: #c73b3b; color: #fff; border-color: #8f2020; }
 
 @media (max-width: 1180px) {
-  .railwrap { width: 250px; }
+  .railwrap, .railwrap[data-sec="views"], .railwrap[data-sec="categories"], .railwrap[data-sec="notes"] { width: 300px; }
+  .railwrap[data-sec="boards"] { width: 294px; }
   .dock { width: 320px; }
   .app[data-dock="open"] .batchbar { left: calc((100% - 320px) / 2); max-width: calc(100% - 320px - 28px); }
 }
 @media (max-width: 980px) {
-  .railwrap { width: 232px; }
+  .railwrap, .railwrap[data-sec="views"], .railwrap[data-sec="categories"], .railwrap[data-sec="boards"], .railwrap[data-sec="notes"] { width: 286px; }
   .dock { width: 300px; }
   .app[data-dock="open"] .batchbar { left: calc((100% - 300px) / 2); max-width: calc(100% - 300px - 28px); }
-  .navitem { font-size: 12px; }
-  .capsule { left: 8px; }
+  .vtile .vnm { font-size: 11px; }
+  .actbar { left: 6px; }
 }
 
 /* 笔记本屏幕高度有限时，压缩检查器，保证操作按钮不被挤出可视区 */
@@ -1693,13 +1767,10 @@ button:active:not(:disabled) { transform: scale(.96); }
 
 /* ================= P2：画板 / BOARDS ================= */
 
-/* 画板分区：贴在分类下方，内容多时自己滚，最多占左栏 42%，最矮留 64px */
+/* 画板 / 笔记列表：面板里只有一个分区，列表跟着内容整条滚 */
 .boards {
-  flex: 0 1 auto; min-height: 64px; max-height: 42%; overflow-y: auto;
   padding-bottom: 8px; -webkit-app-region: no-drag;
 }
-.boards::-webkit-scrollbar { width: 6px; }
-.boards::-webkit-scrollbar-thumb { background: var(--steel); }
 
 /* 画板行复用 .cat 的外观：去掉 12px 箭头列，名字前加一个小方块当「板」记号 */
 .cat.ws { grid-template-columns: 1fr auto auto; }
@@ -1712,8 +1783,8 @@ button:active:not(:disabled) { transform: scale(.96); }
 .cat.ws.drop .nm::before { background: var(--signal); }
 .ws-none { padding: 2px 14px 4px; font-size: 11px; letter-spacing: .04em; color: var(--muted-3); }
 
-/* ＋ 按钮等分区头控件要能点：.rail 整体是 app-region: drag，交互元素必须显式 no-drag */
-.rsec-h, .railhead { -webkit-app-region: no-drag; }
+/* ＋ 按钮 / 分区切换器等栏内控件要能点：.rail 整体是 app-region: drag，交互元素必须显式 no-drag */
+.railhead, .railsw, .railadd-lg { -webkit-app-region: no-drag; }
 
 /* 行内改名输入框铺满整行（12px 首列会把独占一行的输入框挤成一条缝） */
 .catrename { grid-column: 1 / -1; }

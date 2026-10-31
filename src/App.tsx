@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { ResizeHandles, StatusBar, TitleBar, ToolCapsule, useDebounced } from './components/Chrome';
+import { ActivityBar, ResizeHandles, StatusBar, TitleBar, useDebounced } from './components/Chrome';
 import { BatchBar, EmptyState, Masonry, Toolbar } from './components/Stage';
 import { Rail } from './components/Rail';
 import { Dock } from './components/Dock';
@@ -12,9 +12,9 @@ import { CommandPalette } from './components/CommandPalette';
 import { TopoBackground } from './components/TopoBackground';
 import { GuideDrawer, GuideFab } from './components/Guide';
 import {
-  commands, dockTabs, isCollapsed, parseCollapse, railSections, sanitizeDockTab, serializeCollapse, toggleCollapse,
+  commands, dockTabs, railSections, sanitizeDockTab,
   pluginCommandEntries,
-  type CollapseState, type CommandEntry
+  type CommandEntry
 } from './lib/layout-registry';
 import {
   EMPTY_STATS, DEFAULT_VIEWS, type ClipInfo, type Item, type Note, type Prefs, type PluginInfo,
@@ -86,7 +86,8 @@ export default function App() {
 
   /* ---------- 布局重构新增状态：左栏分区/图标轨、右栏 Tab/收起、命令面板、问询抽屉 ---------- */
   const [railOpen, setRailOpen] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState<CollapseState>({});
+  /** 面板一次只显示一个分区（四个功能不再堆成一条长列表） */
+  const [railSection, setRailSection] = useState<string>(() => railSections.ids()[0] || 'views');
   const [dockHidden, setDockHidden] = useState(false);
   /** 没有选中图时，用户仍可主动打开检查器看库概览 */
   const [statsOpen, setStatsOpen] = useState(false);
@@ -174,8 +175,7 @@ export default function App() {
       if (prefs?.railViews?.length) setRailViews(prefs.railViews);
       if (prefs?.railCats?.length) setRailCats(prefs.railCats);
       else setRailCats(info.tree.map(([c]) => c));
-      // 布局偏好：图标轨 / 分区折叠 / dock 收起 / 激活 Tab（key 跟 railViews 同族，存 config.json prefs）
-      setRailCollapsed(parseCollapse(prefs?.railCollapsed));
+      // 布局偏好：dock 收起 / 激活 Tab（key 跟 railViews 同族，存 config.json prefs）
       setDockHidden(!!prefs?.dockHidden);
       setDockTab(sanitizeDockTab(prefs?.dockTab, dockTabs));
       await loadNotes();
@@ -566,21 +566,19 @@ export default function App() {
   useEffect(() => { setRailOpen(false); }, [view, category, sub, wsFilter, activeNoteId]);
 
   /* ---------- 布局偏好写穿 prefs（StrictMode 下副作用不进 setState updater） ---------- */
-  /* 画布优先：素材库是滑出面板，默认收起，靠悬浮工具胶囊唤起 */
+  /* 画布优先：素材库是滑出面板，默认收起，靠 activity bar 唤起 */
   const toggleRail = () => setRailOpen(o => !o);
   const closeRail = () => setRailOpen(false);
+  /** 分区入口（命令面板）：开面板并切到该分区 */
   const openSection = (id: string) => {
+    if (railSections.has(id)) setRailSection(id);
     setRailOpen(true);
-    const def = railSections.list().find(s => s.id === id);
-    if (def && isCollapsed(railCollapsed, def)) toggleSection(id);
-    requestAnimationFrame(() => {
-      document.querySelector(`.railwrap [data-sec="${id}"]`)?.scrollIntoView({ block: 'start' });
-    });
   };
+  /** activity bar 点分区：同一分区再点收起，不同分区直接换页 */
   const toggleSection = (id: string) => {
-    const n = toggleCollapse(railCollapsed, id);
-    setRailCollapsed(n);
-    window.api.lib.setPrefs({ railCollapsed: serializeCollapse(n) } as Partial<Prefs>);
+    if (!railSections.has(id)) return;
+    if (railOpen && railSection === id) setRailOpen(false);
+    else { setRailSection(id); setRailOpen(true); }
   };
   const pickDockTab = (id: string) => {
     setDockTab(id);
@@ -902,6 +900,10 @@ export default function App() {
     'act.notes': () => pickNote(notes[0]?.id || null),
     'act.settings': () => setSettings(true),
     'layout.rail': toggleRail,
+    'layout.section.views': () => openSection('views'),
+    'layout.section.categories': () => openSection('categories'),
+    'layout.section.boards': () => openSection('boards'),
+    'layout.section.notes': () => openSection('notes'),
     'layout.dock-hidden': toggleDockHidden,
     'layout.guide': () => setGuideOpen(true)
   };
@@ -969,16 +971,16 @@ export default function App() {
         data-rail={railOpen ? 'open' : 'closed'}
         data-dock={inspectorVisible ? 'open' : 'closed'}
       >
-        <ToolCapsule
+        <ActivityBar
           open={railOpen}
-          active={activeNoteId ? 'notes' : wsFilter ? 'boards' : category ? 'categories' : 'views'}
-          onToggle={toggleRail}
-          onSection={openSection}
+          activeSection={railSection}
+          sections={railSections.list()}
+          onToggleLib={toggleRail}
+          onPickSection={toggleSection}
           onCommand={() => setCmdOpen(true)}
-          onSettings={() => setSettings(true)}
         />
         <div className={'veil-panel' + (railOpen ? ' on' : '')} onClick={closeRail} aria-hidden="true" />
-        <div className={'railwrap' + (railOpen ? ' open' : '')}>
+        <div className={'railwrap' + (railOpen ? ' open' : '')} data-sec={railSection}>
         <Rail
           view={view}
           setView={v => gotoView(v)}
@@ -1014,8 +1016,9 @@ export default function App() {
           onDeleteNote={id => setConfirmNote(notes.find(n => n.id === id) || null)}
           onPinNote={pinNote}
           onClose={closeRail}
-          sectionCollapsed={railCollapsed}
-          onToggleSection={toggleSection}
+          activeSection={railSection}
+          onPickSection={setRailSection}
+          dragging={!!draggingId}
         />
         </div>
 

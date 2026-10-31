@@ -28,7 +28,7 @@
 | RTM-S18 | 全页设置（分类导航 / 搜索 / 快捷键自定义 / 合规参数） | done | ✅ done | electron/crawler.js:11 · electron/main.js:145 · electron/plugins.js:24（共 232 行命中） | tests/guide-engine.test.mjs ×2 · tests/layout.test.mjs ×2 · tests/plugins.test.mjs ×2 · tests/settings.test.mjs ×3 · tests/theme.test.mjs ×4 |
 | RTM-S19 | 全局错误日志（IPC / 渲染进程 / 崩溃） | done | ✅ done | electron/main.js:29 · electron/logger.js:48 · electron/plugins.js:18（共 23 行命中） | tests/guide-engine.test.mjs ×1 |
 | RTM-S20 | CLIP 零样本分类（基准 ≥90% 门禁） | done | ✅ done | electron/clip.js:3 · electron/db.js:146 · electron/main.js:613（共 78 行命中） | tests/clip-engine.test.mjs ×4 · tests/clip-preprocess.test.mjs ×1 · tests/clip-tokenizer.test.mjs ×2 · tests/guide-engine.test.mjs ×1 · tests/knn.test.mjs ×22 |
-| RTM-S21 | 布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架） | done | ✅ done | src/App.tsx:15 · src/components/Chrome.tsx:2 · src/components/Rail.tsx:2（共 87 行命中） | tests/layout.test.mjs ×2 · tests/smoke-ui.test.mjs ×1 · tests/theme.test.mjs ×1 |
+| RTM-S21 | 布局重构（左栏 Section 注册制 + activity bar / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架） | done | ✅ done | src/App.tsx:15 · src/components/Chrome.tsx:2 · src/components/Rail.tsx:2（共 87 行命中） | tests/layout.test.mjs ×2 · tests/smoke-ui.test.mjs ×1 · tests/theme.test.mjs ×1 |
 | RTM-S22 | 网页采集 agent（NL 命令 + 反问 + robots 合规护栏） | todo | ✅ done | electron/crawler.js:3 · electron/htmlparse.js:5 · electron/intent.js:6（共 131 行命中） | tests/intent.test.mjs ×6 |
 | RTM-S23 | 问询引导 agent（检索式问答） | todo | ✅ done | src/components/Guide.tsx:3 · src/lib/guide-engine.ts:3 · src/lib/guide-kb.ts:372（共 3 行命中） | tests/guide-engine.test.mjs ×1 · tests/guide-kb.test.mjs ×1 |
 | RTM-S24 | 笔记系统（笔记 + 关联图片 + 拼音搜索） | todo | ✅ done | electron/tools.js:1263 · src/App.tsx:48 · src/components/Dock.tsx:64（共 52 行命中） | tests/notes.test.mjs ×20 |
@@ -59,7 +59,7 @@
 - 基线：done · 推导：✅ done
 - 实现位置：`electron/main.js:115`、`src/styles.css:149`、`electron/preload.js:21`
 - 关联测试（1 条）：
-  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉（5 张截图）
+  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / activity bar + 窄浮层（页签/放置面板）/ 检查器浮层 / 命令面板 / 问询抽屉（8 张截图）
 - 验收标准：
   1. 窗口无系统边框（frame: false），标题栏自绘、可拖拽，含最小化/最大化/关闭
   2. 8 个方向（n/s/e/w/nw/ne/sw/se）均可拖边缩放，且有最小尺寸限制
@@ -288,8 +288,8 @@
 - 关联测试（13 条）：
   - `tests/guide-engine.test.mjs` — 问句命中：快捷键（是什么 / 怎么改 / 有哪些）
   - `tests/guide-engine.test.mjs` — 知识条目引用真实快捷键（来自 settings-core PREF_DEFAULTS）
-  - `tests/layout.test.mjs` — createRegistry：重复注册同名报错（id 是折叠状态 / prefs 的稳定键）
-  - `tests/layout.test.mjs` — normalizeCollapse：洗掉非法键值（手改 prefs 也不崩）
+  - `tests/layout.test.mjs` — createRegistry：重复注册同名报错（id 是分区页签 / prefs 的稳定键）
+  - `tests/layout.test.mjs` — railSections：分区 id 稳定（页签键 / 未来 prefs 迁移的锚点）
   - `tests/plugins.test.mjs` — RTM-S28: 启停开关——禁用即卸载（命令消失/run 拒绝/沙盒不执行），启用恢复，状态写进 prefs.plugins.enabled
   - …（其余 8 条略）
 - 验收标准：
@@ -324,17 +324,19 @@
   2. 采纳门禁：≥0.22 阈值才写 clip_cat/clip_score（schema v7），只作建议不直接改分类，用户手动采用
   3. 基准门禁：scripts/clip-benchmark.mjs 合成基准总体准确率 ≥90% 才允许合并（npm run bench:clip）
 
-### RTM-S21 布局重构（左栏 Section 注册制 + 图标轨 / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架）
+### RTM-S21 布局重构（左栏 Section 注册制 + activity bar / Dock Tab / Ctrl+K 命令面板 / 问询抽屉骨架）
 - 来源：feat/relayout（合并 fc54d3d）
 - 基线：done · 推导：✅ done
 - 实现位置：`src/App.tsx:15`、`src/components/Chrome.tsx:2`、`src/components/Rail.tsx:2`
 - 关联测试（4 条）：
   - `tests/layout.test.mjs` — railSections：默认分区齐全且字段完整（views/categories/boards/notes）
   - `tests/layout.test.mjs` — dockTabs：检查器是第一个 Tab，笔记是第二个，sanitizeDockTab 守卫未知 id
-  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / 素材库浮层 / 检查器浮层 / 命令面板 / 问询抽屉（5 张截图）
+  - `tests/smoke-ui.test.mjs` — RTM-S1+RTM-S21: 布局冒烟——无边框窗口自绘标题栏 / 画布优先默认态 / activity bar + 窄浮层（页签/放置面板）/ 检查器浮层 / 命令面板 / 问询抽屉（8 张截图）
   - `tests/theme.test.mjs` — RTM-S29: 命令面板注册了 5 条「切换主题」命令（id 与 App 侧 handler 对齐）
 - 验收标准：
-  1. 左栏分区走 Section 注册制（layout-registry：注册/排序/id 查询/折叠状态持久化），图标轨 + 可展开分区
+  1. 左栏分区走 Section 注册制（layout-registry：注册/排序/id 查询），面板头部四分区页签单段渲染；卡片拖拽时自动切到「放置面板」（分类 + 画板同屏）
+     - 0.9.2 Plan A 变更：折叠持久化与图标轨退役（分区一次只做一个，切换走页签；旧 `prefs.railCollapsed` 忽略）
+     - 0.9.2 Plan B 变更：图标轨回归为 activity bar（LIB + 四分区 + 命令，常驻左侧）；分区图标点开即窄浮层，内容宽 242–260px（`data-sec` 控宽），同一图标再点收起
   2. 检查器 Dock Tab 化（sanitizeDockTab 守卫未知 id，可收起到脊柱态）
   3. Ctrl+K 全局命令面板：静态注册 + 动态命令（分类/画板），关键词多词 AND 过滤；问询抽屉留骨架位
 

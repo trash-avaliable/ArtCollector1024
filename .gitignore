@@ -23,6 +23,9 @@ shot-*.png
 crop-*.png
 installed.png
 
+# 壳层改版主题验收截图（Plan A/B 本地产物）
+.rc-plana-out/
+
 # smoke test artifacts
 .rc-test-lib/
 .rc-test-img/
