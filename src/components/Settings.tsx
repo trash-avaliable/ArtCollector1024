@@ -158,7 +158,7 @@ export function Settings({
               onChange={e => set('clip', { threshold: Number(e.target.value) })} />
           </div>
           <div className="notebox">
-            模型为 CLIP ViT-B/32 量化版（约 85MB），首次使用时自动下载到本地模型目录，之后完全离线运行。
+            模型为 CLIP ViT-B/32 量化版（文本 + 视觉两个 ONNX，合计约 150MB），首次使用时自动下载到本地模型目录，之后完全离线运行。
             基准测试：`npm run bench:clip`（要求总体准确率 ≥ 90%）。
           </div>
         </>
